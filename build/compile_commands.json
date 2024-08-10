@@ -1,0 +1,26 @@
+[
+{
+  "directory": "/Users/flutterdro/dev/somelang/build",
+  "command": "/opt/homebrew/opt/llvm/bin/clang++   -std=c++23 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX14.4.sdk -fcolor-diagnostics -o CMakeFiles/exec.dir/dummy.cpp.o -c /Users/flutterdro/dev/somelang/dummy.cpp",
+  "file": "/Users/flutterdro/dev/somelang/dummy.cpp",
+  "output": "CMakeFiles/exec.dir/dummy.cpp.o"
+},
+{
+  "directory": "/Users/flutterdro/dev/somelang/build",
+  "command": "/opt/homebrew/opt/llvm/bin/clang++   -std=c++23 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX14.4.sdk -fcolor-diagnostics -o CMakeFiles/exec.dir/dummy2.cpp.o -c /Users/flutterdro/dev/somelang/dummy2.cpp",
+  "file": "/Users/flutterdro/dev/somelang/dummy2.cpp",
+  "output": "CMakeFiles/exec.dir/dummy2.cpp.o"
+},
+{
+  "directory": "/Users/flutterdro/dev/somelang/build/lib",
+  "command": "/opt/homebrew/opt/llvm/bin/clang++  -I/Users/flutterdro/dev/somelang/include -std=c++23 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX14.4.sdk -fcolor-diagnostics -o CMakeFiles/frontend.dir/scanner/lex.cpp.o -c /Users/flutterdro/dev/somelang/lib/scanner/lex.cpp",
+  "file": "/Users/flutterdro/dev/somelang/lib/scanner/lex.cpp",
+  "output": "lib/CMakeFiles/frontend.dir/scanner/lex.cpp.o"
+},
+{
+  "directory": "/Users/flutterdro/dev/somelang/build/lib",
+  "command": "/opt/homebrew/opt/llvm/bin/clang++  -I/Users/flutterdro/dev/somelang/include -std=c++23 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX14.4.sdk -fcolor-diagnostics -o CMakeFiles/frontend.dir/parser/parser.cpp.o -c /Users/flutterdro/dev/somelang/lib/parser/parser.cpp",
+  "file": "/Users/flutterdro/dev/somelang/lib/parser/parser.cpp",
+  "output": "lib/CMakeFiles/frontend.dir/parser/parser.cpp.o"
+}
+]

@@ -1,0 +1,90 @@
+#ifndef FED_PARSE_TREE_HPP_
+#define FED_PARSE_TREE_HPP_
+
+#include <string_view>
+#include <variant>
+#include <optional>
+#include <vector>
+
+
+namespace fed {
+
+template<typename T>
+using group = std::vector<T>;
+using identifier = std::string_view;
+using identifier_group = std::vector<std::string_view>;
+
+struct expression;
+struct simple_expression;
+struct binary_simple_expression;
+struct factor;
+struct enumerated_type;
+struct term;
+
+struct program_heading {
+    std::string_view name;
+    std::optional<identifier_group> externals;
+};
+
+struct label_declaration {
+    group<identifier> labels;
+};
+
+// constant is either a number, a constant identifier 
+// (possibly signed), a character, or a string
+// TODO: handle constant id 
+using constant = std::variant<int, double, char, std::string_view>;
+
+struct constant_definition {
+    identifier identifiers;
+    constant constants;
+};
+
+struct simple_type {};
+struct structured_type {};
+struct pointer_type {};
+
+using type = std::variant<simple_type, structured_type, pointer_type>;
+
+
+struct type_definition {
+    identifier identifiers;
+    type types;
+};
+
+struct variable_declaration {
+    group<identifier> identifiers;
+    type type;
+};
+
+
+struct block {
+    std::optional<label_declaration> label_declaration_part;
+    std::optional<group<constant_definition>> constant_deginitions;
+    std::optional<group<type_definition>> type_definitions;
+    std::optional<group<variable_declaration>> variable_declarations;
+
+};
+
+struct program {
+    program_heading head;
+    block           body;
+};
+
+struct enumerated_type {
+    identifier_group identifiers;
+};
+
+
+struct expression {
+    std::variant<> ;
+};
+
+
+
+
+} // namespace fed
+
+
+
+#endif
