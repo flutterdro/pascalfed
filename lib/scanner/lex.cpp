@@ -1,6 +1,8 @@
 #include "fed/scanner/lex.hpp"
+#include "fed/representations/raw-source.hpp"
 #include "fed/scanner/token.hpp"
 #include "fed/utils/superutil.hpp"
+#include "fed/diagnostics/internal-error.hpp"
 
 
 #include <string_view>
@@ -13,6 +15,14 @@ using namespace std::literals;
 namespace stdr = std::ranges;
 
 
+lexer::lexer(source::full_view view) 
+    :
+        m_source(view), 
+        m_cursor(m_source.begin()),
+        m_cached_token(),
+        m_is_relexing(false)
+{}
+
 
 auto lexer::advance_lexer()
     -> void {
@@ -24,10 +34,10 @@ auto lexer::advance_lexer()
     m_is_relexing = false;
 }
 
-constexpr auto lex_as_word(std::string_view source) noexcept 
+auto lexer::lex_as_word() noexcept 
     -> token_view {
-    auto result = token_view{};
-    auto token_size = std::string_view::size_type{1};
+    auto result = token_view();
+    auto const start = m_cursor;
 
     auto is_valid_identifier_symbol = func::any_of(
             "abcdefghijklmnopqrstuvwxyz"
@@ -35,207 +45,237 @@ constexpr auto lex_as_word(std::string_view source) noexcept
             "1234567890"sv
         );
 
-    while (token_size < source.size() and 
-        is_valid_identifier_symbol(source[token_size])) {
-        ++token_size;
-    }
+    while (m_cursor != m_source.end() and 
+        is_valid_identifier_symbol(*m_cursor++)) {}
 
-    result = token_view{
-        .m_view = source.substr(0, token_size),
-        .m_type = token_type::identifier,
-    };
+    result = token_view(
+        m_source.subview(start, m_cursor),
+        token_type::identifier
+    );
 
     return result;
 }
 
-constexpr auto lex_as_literal(std::string_view source) 
+auto lexer::lex_as_literal() noexcept
     -> token_view {
-    auto result = token_view{};
-    auto token_size = std::size_t{1};
+    auto result = token_view();
+    auto const start = m_cursor++;
     
-    for (std::size_t i = 1; source[i] != '\''; ++i, ++token_size) {}
+    while (m_cursor != m_source.end() and *m_cursor++ != '\'') {}
 
-    result = token_view{
-        .m_view = source.substr(0, token_size),
-        .m_type = token_type::literal,
-    };
+    result = token_view(
+        m_source.subview(start, m_cursor),
+        token_type::literal
+    );
 
     return result;
 }
 
-constexpr auto lex_as_number(std::string_view source)
+auto lexer::lex_as_number() noexcept
     -> token_view {
-    auto result = token_view{};
+    auto result = token_view();
 
     return result;
 }
 
 auto lexer::lex_next_token() noexcept 
     -> token_view {
-    auto result = token_view{};
+    auto result = token_view();
+    
+    // if we call this without prior advance_lexer() 
+    // then we can just return cached result
     if (m_is_relexing) {
         result = m_cached_token;
         return result;
     }
-    m_cursor = stdr::find_if(m_cursor, m_source.end(), func::no(func::any_of("\t \n"sv)));
-    switch(m_source[0]) {
+    
+    // skip whitespaces etc
+    m_cursor = stdr::find_if(
+        m_cursor, m_source.end(), 
+        func::no(func::any_of("\t \n"sv))
+    );
+
+    if (m_cursor == m_source.end()) {
+        result = token_view(
+            source::view(),
+            token_type::eof
+        );
+        return result;
+    }
+
+    switch(*m_cursor) {
         // for now handles only small letters
         case 'a':case 'b':case 'c':case 'd':case 'e':case 'f':
         case 'g':case 'h':case 'j':case 'k':case 'l':case 'm':
         case 'n':case 'o':case 'p':case 'q':case 'r':case 's':
         case 't':case 'u':case 'v':case 'w':case 'x':case 'y':
         case 'z': {
-            result = fed::lex_as_word(m_source);
+            result = lex_as_word();
             break;
         }
         case '0':case '1':case '2':case '3':case '4':case '5':
         case '6':case '7':case '8':case '9': {
-            result = fed::lex_as_number(m_source);
+            result = lex_as_number();
             break;
         }
         case '\'': {
-            result = fed::lex_as_literal(m_source);
+            result = lex_as_literal();
             break;
         }
         case '+': {
-            result = token_view{
-                .m_view = m_source.substr(0, 1),
-                .m_type = token_type::plus,
-            };
+            auto const start = m_cursor++;
+            result = token_view(
+                m_source.subview(start, m_cursor),
+                token_type::plus
+        );
             break;
         }
         case '-': {
-            result = token_view{
-                .m_view = m_source.substr(0, 1),
-                .m_type = token_type::minus,
-            };
+            auto const start = m_cursor++;
+            result = token_view(
+                m_source.subview(start, m_cursor),
+                token_type::minus
+            );
             break;
         }
         case '*': {
-            result = token_view{
-                .m_view = m_source.substr(0, 1),
-                .m_type = token_type::star,
-            };
+            auto const start = m_cursor++;
+            result = token_view(
+                m_source.subview(start, m_cursor),
+                token_type::star
+            );
             break;
         }
         case '/': {
-            result = token_view{
-                .m_view = m_source.substr(0, 1),
-                .m_type = token_type::slash,
-            };
+            auto const start = m_cursor++;
+            result = token_view(
+                m_source.subview(start, m_cursor),
+                token_type::slash
+            );
             break;
         }
         case ';': {
-            result = token_view{
-                .m_view = m_source.substr(0, 1),
-                .m_type = token_type::semicolon,
-            };
+            auto const start = m_cursor++;
+            result = token_view(
+                m_source.subview(start, m_cursor),
+                token_type::semicolon
+            );
             break;
         }
         case '^': {
-            result = token_view{
-                .m_view = m_source.substr(0, 1),
-                .m_type = token_type::caret,
-            };
+            auto const start = m_cursor++;
+            result = token_view(
+                m_source.subview(start, m_cursor),
+                token_type::caret
+            );
             break;
         }
         case '[': {
-            result = token_view{
-                .m_view = m_source.substr(0, 1),
-                .m_type = token_type::l_square,
-            };
+            auto const start = m_cursor++;
+            result = token_view(
+                m_source.subview(start, m_cursor),
+                token_type::l_square
+            );
             break;
         }
         case ']': {
-            result = token_view{
-                .m_view = m_source.substr(0, 1),
-                .m_type = token_type::r_square,
-            };
+            auto const start = m_cursor++;
+            result = token_view(
+                m_source.subview(start, m_cursor),
+                token_type::r_square
+            );
             break;
         }
         case ')': {
-            result = token_view{
-                .m_view = m_source.substr(0, 1),
-                .m_type = token_type::r_paren,
-            };
+            auto const start = m_cursor++;
+            result = token_view(
+                m_source.subview(start, m_cursor),
+                token_type::r_paren
+            );
             break;
         }
         case '(': {
-            result = token_view{
-                .m_view = m_source.substr(0, 1),
-                .m_type = token_type::l_paren,
-            };
+            auto const start = m_cursor++;
+            result = token_view(
+                m_source.subview(start, m_cursor),
+                token_type::l_paren
+            );
             break;
         }
         case ',': {
-            result = token_view{
-                .m_view = m_source.substr(0, 1),
-                .m_type = token_type::comma,
-            };
+            auto const start = m_cursor++;
+            result = token_view(
+                m_source.subview(start, m_cursor),
+                token_type::comma
+            );
             break;
         }
         case '=': {
-            result = token_view{
-                .m_view = m_source.substr(0, 1),
-                .m_type = token_type::equal,
-            };
+            auto const start = m_cursor++;
+            result = token_view(
+                m_source.subview(start, m_cursor),
+                token_type::equal
+            );
             break;
         }
         case '<': {
-            if (m_source.size() > 1) {
-                if (m_source[1] == '>') {
-                    result = token_view{
-                        .m_view = m_source.substr(0, 2),
-                        .m_type = token_type::not_equal,
-                    };
+            auto const start = m_cursor++;
+            if (m_cursor != m_source.end()) {
+                if (*m_cursor == '>') {
+                    result = token_view(
+                        m_source.subview(start, ++m_cursor),
+                        token_type::not_equal
+                    );
                     break;
-                } else if (m_source[1] == '=') {
-                    result = token_view{
-                        .m_view = m_source.substr(0, 2),
-                        .m_type = token_type::less_or_equal_than,
-                    };
+                } else if (*m_cursor == '=') {
+                    result = token_view(
+                        m_source.subview(start, ++m_cursor),
+                        token_type::less_or_equal_than
+                    );
                     break;
                 }
             }
-            result = token_view{
-                .m_view = m_source.substr(0, 1),
-                .m_type = token_type::less_than,
-            };
+            result = token_view(
+                m_source.subview(start, m_cursor),
+                token_type::less_than
+            );
             break;
         }
         case '>': {
-            if (m_source.size() > 1 and m_source[1] == '=') {
-                result = token_view{
-                    .m_view = m_source.substr(0, 2),
-                    .m_type = token_type::greater_or_equal_than,
-                };
+            auto const start = m_cursor++;
+            if (m_cursor != m_source.end() and *m_cursor == '=') {
+                result = token_view(
+                    m_source.subview(start, ++m_cursor),
+                    token_type::greater_or_equal_than
+                );
             } else {
-                result = token_view{
-                    .m_view = m_source.substr(0, 1),
-                    .m_type = token_type::greater_than,
-                };
+                result = token_view(
+                    m_source.subview(start, m_cursor),
+                    token_type::greater_than
+                );
             }
             break;
         }
         case '.': {
-            if (m_source.size() > 1 and m_source[1] == '.') {
-                result = token_view{
-                    .m_view = m_source.substr(0, 2),
-                    .m_type = token_type::dotdot,
-                };
+            auto const start = m_cursor++;
+            if (m_cursor != m_source.end() and *m_cursor == '.') {
+                result = token_view(
+                    m_source.subview(start, ++m_cursor),
+                    token_type::dotdot
+                );
             } else {
-                result = token_view{
-                    .m_view = m_source.substr(0, 1),
-                    .m_type = token_type::dot,
-                };
+                result = token_view(
+                    m_source.subview(start, m_cursor),
+                    token_type::dot
+                );
             }
             break;
         }
         default: {
-            result = token_view{
-                .m_view = {},
-                .m_type = token_type::not_a_token,
-            };
+            result = token_view(
+                source::view(),
+                token_type::not_a_token
+            );
             break;
         }
     }

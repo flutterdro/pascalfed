@@ -17,6 +17,7 @@ struct storage {
 };
 
 struct view {
+    constexpr view() noexcept = default;
     view(location marker, std::string_view view) noexcept;
     auto subview(std::size_t start, std::size_t count) const noexcept
         -> view;
@@ -39,7 +40,7 @@ public:
         -> std::size_t;
     auto count_lines() const noexcept
         -> unsigned;
-    auto subview(iterator start, std::size_t count) const noexcept
+    auto subview(iterator start, iterator end) const noexcept
         -> view;
 private:
     std::string_view m_view; 

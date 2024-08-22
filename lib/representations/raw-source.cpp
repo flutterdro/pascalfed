@@ -43,11 +43,11 @@ auto full_view::begin() const noexcept
 auto full_view::end() const noexcept
     -> sentinel { return m_view.end(); }
 
-auto full_view::subview(iterator start, std::size_t count) const noexcept
+auto full_view::subview(iterator start, iterator end) const noexcept
     -> view { 
     return  view{
         start.where(), 
-        std::string_view(start.base(), start.base() + count)
+        std::string_view(start.base(), end.base())
     }; 
 }
 

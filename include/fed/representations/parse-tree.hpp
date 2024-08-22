@@ -1,6 +1,7 @@
 #ifndef FED_PARSE_TREE_HPP_
 #define FED_PARSE_TREE_HPP_
 
+#include "fed/representations/raw-source.hpp"
 #include <string_view>
 #include <variant>
 #include <optional>
@@ -11,7 +12,7 @@ namespace fed {
 
 template<typename T>
 using group = std::vector<T>;
-using identifier = std::string_view;
+using identifier = source::view;
 using identifier_group = std::vector<std::string_view>;
 
 struct expression;
@@ -22,8 +23,8 @@ struct enumerated_type;
 struct term;
 
 struct program_heading {
-    std::string_view name;
-    std::optional<identifier_group> externals;
+    identifier name;
+    std::optional<group<identifier>> externals;
 };
 
 struct label_declaration {

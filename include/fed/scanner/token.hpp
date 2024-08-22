@@ -1,7 +1,7 @@
 #ifndef FED_TOKEN_HPP_
 #define FED_TOKEN_HPP_
 
-#include <string_view>
+#include "fed/representations/raw-source.hpp"
 
 namespace fed {
 
@@ -66,15 +66,16 @@ enum class token_type {
     number,
     literal,
     eof,
+    empty,
     not_a_token,
 };
 
 struct token_view {
     [[nodiscard]]constexpr auto type() const noexcept
-        -> token_type const& { return m_type; }
-    [[nodiscard]]constexpr auto view() const noexcept
-        -> std::string_view const& { return m_view; }
-    std::string_view m_view;
+        -> token_type { return m_type; }
+    [[nodiscard]]constexpr auto view() noexcept
+        -> source::view& { return m_view; }
+    source::view m_view;
     token_type m_type;
 };
 
