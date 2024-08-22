@@ -2,7 +2,11 @@
 /Users/flutterdro/dev/somelang/build/CMakeFiles/test.dir
 /Users/flutterdro/dev/somelang/build/CMakeFiles/edit_cache.dir
 /Users/flutterdro/dev/somelang/build/CMakeFiles/rebuild_cache.dir
-/Users/flutterdro/dev/somelang/build/lib/CMakeFiles/frontend.dir
+/Users/flutterdro/dev/somelang/build/tests/CMakeFiles/frontend_tests.dir
+/Users/flutterdro/dev/somelang/build/tests/CMakeFiles/test.dir
+/Users/flutterdro/dev/somelang/build/tests/CMakeFiles/edit_cache.dir
+/Users/flutterdro/dev/somelang/build/tests/CMakeFiles/rebuild_cache.dir
+/Users/flutterdro/dev/somelang/build/lib/CMakeFiles/fed_frontend.dir
 /Users/flutterdro/dev/somelang/build/lib/CMakeFiles/test.dir
 /Users/flutterdro/dev/somelang/build/lib/CMakeFiles/edit_cache.dir
 /Users/flutterdro/dev/somelang/build/lib/CMakeFiles/rebuild_cache.dir

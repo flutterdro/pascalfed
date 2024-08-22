@@ -1,0 +1,21 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "base",
+            "binaryDir": "${sourceDir}/build",
+            "generator": "Ninja"
+        },
+        {
+            "name": "conan-deps",
+            "toolchainFile": "${sourceDir}/conan/conan_toolchain.cmake"
+        },
+        {
+            "name": "dev-debug",
+            "inherits": ["conan-deps", "base"],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        }
+    ]
+}

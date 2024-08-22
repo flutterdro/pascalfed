@@ -92,14 +92,17 @@ endif()
 set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
 
 # Definition of CMAKE_MODULE_PATH
+list(PREPEND CMAKE_MODULE_PATH "/Users/flutterdro/.conan2/p/b/catch5390757d4ba90/p/lib/cmake/Catch2")
 # the generators folder (where conan generates files, like this toolchain)
 list(PREPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
 
 # Definition of CMAKE_PREFIX_PATH, CMAKE_XXXXX_PATH
+# The explicitly defined "builddirs" of "host" context dependencies must be in PREFIX_PATH
+list(PREPEND CMAKE_PREFIX_PATH "/Users/flutterdro/.conan2/p/b/catch5390757d4ba90/p/lib/cmake/Catch2")
 # The Conan local "generators" folder, where this toolchain is saved.
 list(PREPEND CMAKE_PREFIX_PATH ${CMAKE_CURRENT_LIST_DIR} )
-list(PREPEND CMAKE_LIBRARY_PATH "/Users/flutterdro/.conan2/p/b/fmt4deb0e11afcc4/p/lib")
-list(PREPEND CMAKE_INCLUDE_PATH "/Users/flutterdro/.conan2/p/b/fmt4deb0e11afcc4/p/include")
+list(PREPEND CMAKE_LIBRARY_PATH "/Users/flutterdro/.conan2/p/b/fmt4deb0e11afcc4/p/lib" "/Users/flutterdro/.conan2/p/b/catch5390757d4ba90/p/lib")
+list(PREPEND CMAKE_INCLUDE_PATH "/Users/flutterdro/.conan2/p/b/fmt4deb0e11afcc4/p/include" "/Users/flutterdro/.conan2/p/b/catch5390757d4ba90/p/include")
 
 
 

@@ -10,6 +10,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
+option(FED_BUILD_TESTS "Build tests" ON)
+
+if (FED_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
+
 add_subdirectory(lib)
 
 add_executable(exec dummy.cpp)

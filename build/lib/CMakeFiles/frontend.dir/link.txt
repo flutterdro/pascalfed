@@ -1,2 +1,0 @@
-/usr/bin/ar qc libfrontend.a CMakeFiles/frontend.dir/scanner/lex.cpp.o CMakeFiles/frontend.dir/parser/parser.cpp.o
-/opt/homebrew/opt/llvm/bin/llvm-ranlib libfrontend.a

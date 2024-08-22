@@ -10,3 +10,6 @@ class Recipe(ConanFile):
 
     def requirements(self):
         self.requires("fmt/[~11]")
+
+    def build_requirements(self):
+        self.test_requires("catch2/[~3]")
