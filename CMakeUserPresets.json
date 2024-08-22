@@ -1,9 +1,0 @@
-{
-    "version": 4,
-    "vendor": {
-        "conan": {}
-    },
-    "include": [
-        "/Users/flutterdro/dev/somelang/conan/CMakePresets.json"
-    ]
-}
