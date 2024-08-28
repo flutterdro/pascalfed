@@ -14,7 +14,7 @@ enum class token_type {
     keyword_div,
     keyword_do,
     keyword_downto,
-    keuword_else,
+    keyword_else,
     keyword_end,
     keyword_file,
     keyword_for,
@@ -73,8 +73,8 @@ enum class token_type {
 struct token_view {
     [[nodiscard]]constexpr auto type() const noexcept
         -> token_type { return m_type; }
-    [[nodiscard]]constexpr auto view() noexcept
-        -> source::view& { return m_view; }
+    [[nodiscard]]constexpr auto view() const noexcept
+        -> source::view { return m_view; }
     source::view m_view;
     token_type m_type;
 };

@@ -18,6 +18,10 @@ struct lexer {
         -> lexer& = default;
     auto operator=(lexer&&)
         -> lexer& = default;
+
+    auto cursor() const noexcept
+        -> source::iterator;
+
     [[nodiscard]]auto lex_next_token() noexcept
         -> token_view;
     auto advance_lexer()
@@ -31,7 +35,7 @@ struct lexer {
         -> token_view;
     
     source::full_view m_source;
-    source::full_view::iterator m_cursor;
+    source::iterator m_cursor;
     token_view m_cached_token;
     bool m_is_relexing;
 };

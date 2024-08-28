@@ -30,6 +30,8 @@ constexpr auto parse_group_of_symbols(
 ) -> parse_result<group<SymbolT>> {
     auto result = group<SymbolT>{};
 
+    auto const start = parser.cursor();
+
     {
         auto element = SymbolT{};
         TRY(element, (parser.*symbol_parse_function)());
@@ -37,8 +39,15 @@ constexpr auto parse_group_of_symbols(
     }
 
     while (stdr::none_of(terminals, func::equal_to(parser.current_token().type()))) {
-        if (parser.consume_and_advance().type() != separator) {
-            return std::unexpected(parse_error{});
+        auto const end = parser.cursor();
+        if (separator != token_type::empty and parser.consume_and_advance().type() != separator) {
+            return std::unexpected(
+                parse_error(
+                    end.where(), source::view(start, end), 
+                    parse_error::type::missing_token,
+                    separator
+                )
+            );
         }
         
         auto element = SymbolT{};
@@ -58,15 +67,26 @@ auto parser::parse_program()
     // for now I don't give a fuck about perfomance
     // could be an issue later
     auto result = program{};
+    auto const program_view_start = cursor();
 
     TRY(result.head, parse_program_heading());
-
-    if (consume_and_advance().m_type != token_type::semicolon) {
-        return std::unexpected(parse_error{});
+    
+    auto const program_head_end = cursor();
+    if (consume_and_advance().type() != token_type::semicolon) {
+        return std::unexpected(
+            parse_error(
+                program_head_end.where(), 
+                source::view(program_view_start, program_head_end),
+                parse_error::type::missing_token,
+                token_type::semicolon
+            )
+        );
     }
     
     TRY(result.body, parse_block());
     
+    result.region = source::view(program_view_start, cursor());
+
     return result;
 }
 
@@ -75,8 +95,8 @@ auto parser::parse_program_heading()
     -> parse_result<program_heading> {
     auto result = program_heading{};
 
-    if (consume_and_advance().m_type != token_type::keyword_program) {
-        return std::unexpected(parse_error{});
+    if (auto is_success = try_consume_and_advance_expecting(token_type::keyword_program)) {
+        return std::unexpected(*is_success);
     }
 
     TRY(result.name, parse_identifier());
@@ -97,19 +117,6 @@ auto parser::parse_program_heading()
         )
     );
 
-    auto first_identifier = identifier{};
-    TRY(first_identifier, parse_identifier());
-    result.externals->push_back(first_identifier);
-    while (m_lexer.lex_next_token().m_type != token_type::r_paren) {
-        if (consume_and_advance().m_type != token_type::comma) {
-            return std::unexpected(parse_error{});
-        }
-        auto next_identifier = identifier{};
-        TRY(next_identifier, parse_identifier());
-        result.externals->push_back(next_identifier);
-    }
-    m_lexer.advance_lexer();
-    
     return result;
 }
 
@@ -146,8 +153,15 @@ auto parser::parse_block()
 // identifier = [a-zA-z][a-zA-Z0-9]*
 auto parser::parse_identifier()
     -> parse_result<identifier> {
-    if (m_lexer.lex_next_token().m_type != token_type::identifier) {
-        return std::unexpected(parse_error{});
+    auto const start = cursor();
+    if (current_token().type() != token_type::identifier) {
+        return std::unexpected(
+            parse_error(
+                start.where(), current_token().view(),
+                parse_error::type::unexpected_token,
+                token_type::identifier
+            )
+        );
     }
 
     return identifier{consume_and_advance().m_view};

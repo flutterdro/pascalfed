@@ -3,7 +3,13 @@
 
 namespace fed::source {
 
-auto full_view::iterator::operator++() noexcept
+view::view(iterator begin, iterator end) noexcept
+    : m_view(begin.base(), end.base()), m_marker(begin.where()) {}
+
+full_view::full_view(underlying_view_t view)
+    : m_view{view} {}
+
+auto iterator::operator++() noexcept
     -> iterator& {
     if (*m_iterator == '\n') {
         m_location.column = 0;
@@ -16,7 +22,7 @@ auto full_view::iterator::operator++() noexcept
     return *this;
 }
 
-auto full_view::iterator::operator++(int) noexcept
+auto iterator::operator++(int) noexcept
     -> iterator {
     auto tmp = *this;
     ++*this;
@@ -24,7 +30,7 @@ auto full_view::iterator::operator++(int) noexcept
     return tmp;
 }
 
-auto full_view::iterator::operator*() const noexcept
+auto iterator::operator*() const noexcept
     -> value_type {
     return *m_iterator;
 }
@@ -46,8 +52,8 @@ auto full_view::end() const noexcept
 auto full_view::subview(iterator start, iterator end) const noexcept
     -> view { 
     return  view{
-        start.where(), 
-        std::string_view(start.base(), end.base())
+        start,
+        end
     }; 
 }
 

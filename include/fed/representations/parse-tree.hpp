@@ -23,6 +23,7 @@ struct enumerated_type;
 struct term;
 
 struct program_heading {
+    source::view region;
     identifier name;
     std::optional<group<identifier>> externals;
 };
@@ -37,6 +38,7 @@ struct label_declaration {
 using constant = std::variant<int, double, char, std::string_view>;
 
 struct constant_definition {
+    source::view region;
     identifier identifiers;
     constant constants;
 };
@@ -49,17 +51,20 @@ using type = std::variant<simple_type, structured_type, pointer_type>;
 
 
 struct type_definition {
+    source::view region;
     identifier identifiers;
     type types;
 };
 
 struct variable_declaration {
+    source::view region;
     group<identifier> identifiers;
     type type;
 };
 
 
 struct block {
+    source::view region;
     std::optional<label_declaration> label_declaration_part;
     std::optional<group<constant_definition>> constant_deginitions;
     std::optional<group<type_definition>> type_definitions;
@@ -68,16 +73,19 @@ struct block {
 };
 
 struct program {
+    source::view region;
     program_heading head;
     block           body;
 };
 
 struct enumerated_type {
+    source::view region;
     identifier_group identifiers;
 };
 
 
 struct expression {
+    source::view region;
     std::variant<> ;
 };
 

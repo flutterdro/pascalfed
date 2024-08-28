@@ -8,6 +8,7 @@ target_sources(fed_frontend
     PRIVATE 
         scanner/lex.cpp
         parser/parser.cpp
+        representations/raw-source.cpp
 )
 
 
