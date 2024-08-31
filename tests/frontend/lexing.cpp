@@ -139,5 +139,12 @@ TEST_CASE("Individual tokens", "[frontend][scanner]") {
 #       undef TEST_KEYWORD
     }
 
+    SECTION("literal token") {
+        fed::lexer lex("'mama ama literal'"sv);
+        auto const token = lex.lex_next_token();
+        CHECK(token.type() == fed::token_type::literal);
+        CHECK(token.view().base() == "'mama ama literal'"sv);
+    }
+
 }
 

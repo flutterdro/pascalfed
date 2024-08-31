@@ -1,4 +1,5 @@
 #include "fed/scanner/lex.hpp"
+#include "fed/representations/parse-tree.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/scanner/token.hpp"
 #include "fed/utils/superutil.hpp"
@@ -34,6 +35,49 @@ auto lexer::advance_lexer()
     m_is_relexing = false;
 }
 
+auto check_for_keyword(std::string_view identifier) 
+    -> token_type {
+
+    // TODO: compare hashes, not strings
+    if (identifier == "and"sv) return token_type::keyword_and;
+    if (identifier == "array"sv) return token_type::keyword_array;
+    if (identifier == "begin"sv) return token_type::keyword_begin;
+    if (identifier == "case"sv) return token_type::keyword_case;
+    if (identifier == "const"sv) return token_type::keyword_const;
+    if (identifier == "div"sv) return token_type::keyword_div;
+    if (identifier == "do"sv) return token_type::keyword_do;
+    if (identifier == "downto"sv) return token_type::keyword_downto;
+    if (identifier == "else"sv) return token_type::keyword_else;
+    if (identifier == "end"sv) return token_type::keyword_end;
+    if (identifier == "file"sv) return token_type::keyword_file;
+    if (identifier == "for"sv) return token_type::keyword_for;
+    if (identifier == "function"sv) return token_type::keyword_function;
+    if (identifier == "goto"sv) return token_type::keyword_goto;
+    if (identifier == "if"sv) return token_type::keyword_if;
+    if (identifier == "in"sv) return token_type::keyword_in;
+    if (identifier == "label"sv) return token_type::keyword_label;
+    if (identifier == "mod"sv) return token_type::keyword_mod;
+    if (identifier == "nil"sv) return token_type::keyword_nil;
+    if (identifier == "not"sv) return token_type::keyword_not;
+    if (identifier == "of"sv) return token_type::keyword_of;
+    if (identifier == "or"sv) return token_type::keyword_or;
+    if (identifier == "packed"sv) return token_type::keyword_packed;
+    if (identifier == "procedure"sv) return token_type::keyword_procedure;
+    if (identifier == "program"sv) return token_type::keyword_program;
+    if (identifier == "record"sv) return token_type::keyword_record;
+    if (identifier == "repeat"sv) return token_type::keyword_repeat;
+    if (identifier == "set"sv) return token_type::keyword_set;
+    if (identifier == "then"sv) return token_type::keyword_then;
+    if (identifier == "to"sv) return token_type::keyword_to;
+    if (identifier == "type"sv) return token_type::keyword_type;
+    if (identifier == "until"sv) return token_type::keyword_until;
+    if (identifier == "var"sv) return token_type::keyword_var;
+    if (identifier == "while"sv) return token_type::keyword_while;
+    if (identifier == "with"sv) return token_type::keyword_with;
+
+
+    return token_type::identifier;
+}
 auto lexer::lex_as_word() noexcept 
     -> token_view {
     auto result = token_view();
@@ -48,9 +92,12 @@ auto lexer::lex_as_word() noexcept
     while (m_cursor != m_source.end() and 
         is_valid_identifier_symbol(*m_cursor++)) {}
 
+    auto const identifier_view = source::view(start, m_cursor);
+
+
     result = token_view(
-        m_source.subview(start, m_cursor),
-        token_type::identifier
+        identifier_view,
+        check_for_keyword(identifier_view.base())
     );
 
     return result;
@@ -104,12 +151,15 @@ auto lexer::lex_next_token() noexcept
     }
 
     switch(*m_cursor) {
-        // for now handles only small letters
-        case 'a':case 'b':case 'c':case 'd':case 'e':case 'f':
-        case 'g':case 'h':case 'j':case 'k':case 'l':case 'm':
-        case 'n':case 'o':case 'p':case 'q':case 'r':case 's':
-        case 't':case 'u':case 'v':case 'w':case 'x':case 'y':
-        case 'z': {
+        case 'A':case 'B':case 'C':case 'D':case 'E':case 'F':
+        case 'G':case 'H':case 'I':case 'J':case 'K':case 'L':
+        case 'M':case 'N':case 'O':case 'P':case 'Q':case 'R':
+        case 'S':case 'T':case 'U':case 'V':case 'W':case 'X':
+        case 'Y':case 'Z':case 'a':case 'b':case 'c':case 'd':
+        case 'e':case 'f':case 'g':case 'h':case 'i':case 'j':
+        case 'k':case 'l':case 'm':case 'n':case 'o':case 'p':
+        case 'q':case 'r':case 's':case 't':case 'u':case 'v':
+        case 'w':case 'x':case 'y':case 'z': {
             result = lex_as_word();
             break;
         }
@@ -267,6 +317,21 @@ auto lexer::lex_next_token() noexcept
                 result = token_view(
                     m_source.subview(start, m_cursor),
                     token_type::dot
+                );
+            }
+            break;
+        }
+        case ':': {
+            auto const start = m_cursor++;
+            if (m_cursor != m_source.end() and *m_cursor == '=') {
+                result = token_view(
+                    source::view(start, ++m_cursor),
+                    token_type::define
+                );
+            } else {
+                result = token_view(
+                    source::view(start, m_cursor),
+                    token_type::colon
                 );
             }
             break;
