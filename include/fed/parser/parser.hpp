@@ -30,6 +30,8 @@ public:
         -> token_view;
     auto try_consume_and_advance_expecting(token_type token)
         -> std::optional<parse_error>;
+    auto maybe_consume_and_advance_expecting(token_type token)
+        -> bool;
     auto current_token()
         -> token_view;
     auto cursor()
@@ -47,8 +49,20 @@ public:
         -> parse_result<block>;
     auto parse_type_definition()
         -> parse_result<type_definition>;
+    auto parse_type()
+        -> parse_result<type>;
     auto parse_identifier()
         -> parse_result<identifier>;
+    auto parse_formal_parameter_list()
+        -> parse_result<group<formal_parameter>>;
+    auto parse_formal_parameter()
+        -> parse_result<formal_parameter>;
+    auto parse_formal_parameter_simple()
+        -> parse_result<formal_parameter_simple>;
+    auto parse_function_declaration()
+        -> parse_result<function_declaration>;
+    auto parse_function_heading()
+        -> parse_result<function_heading>;
 
 private:
     lexer m_lexer;

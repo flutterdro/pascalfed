@@ -52,7 +52,7 @@ using type = std::variant<simple_type, structured_type, pointer_type>;
 
 struct type_definition {
     source::view region;
-    identifier identifiers;
+    identifier name;
     type types;
 };
 
@@ -62,7 +62,6 @@ struct variable_declaration {
     type type;
 };
 
-
 struct block {
     source::view region;
     std::optional<label_declaration> label_declaration_part;
@@ -71,6 +70,54 @@ struct block {
     std::optional<group<variable_declaration>> variable_declarations;
 
 };
+
+struct formal_parameter_simple {
+    bool is_variable;
+    group<identifier> names;
+    identifier type;
+};
+
+struct function_heading;
+struct procedure_heading;
+
+using formal_parameter = 
+    std::variant<formal_parameter_simple, function_heading, procedure_heading>;
+
+struct function_heading {
+    identifier name;
+    std::optional<group<formal_parameter>> formal_parametr_list;
+    identifier return_type;
+};
+
+struct function_forward {
+    identifier name;
+    group<formal_parameter> formal_parameter_list;
+};
+struct function_declaration {
+    function_heading head;
+    std::optional<block> body;
+};
+
+struct procedure_heading {
+    identifier name;
+    std::optional<group<formal_parameter>> formal_parametr_list;
+    identifier return_type;
+};
+
+struct procedure_forward {
+    identifier name;
+    group<formal_parameter> formal_parameter_list;
+};
+struct procedure_implementation {
+    procedure_heading head;
+    block body;
+};
+
+using procedure_declaration = 
+    std::variant<procedure_forward, procedure_implementation>;
+
+
+
 
 struct program {
     source::view region;

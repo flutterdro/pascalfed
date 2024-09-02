@@ -1,4 +1,5 @@
 #include "fed/parser/parser.hpp"
+#include "fed/diagnostics/internal-error.hpp"
 #include "fed/parser/parse_error.hpp"
 #include "fed/representations/parse-tree.hpp"
 #include "fed/scanner/token.hpp"
@@ -7,6 +8,7 @@
 #include <initializer_list>
 #include <optional>
 #include <type_traits>
+#include <utility>
 
 
 namespace fed {
@@ -16,7 +18,8 @@ namespace fed {
 do {auto exp2 = exp;\
 if (not exp2.has_value()) return std::unexpected{std::move(exp2.error())}; \
 dest = std::move(exp2.value());} while(false)
-
+#define TRY_OPT(opt) \
+if (opt.has_value()) return std::unexpected{std::move(*opt)};
 
 using list_of_terminals = std::initializer_list<token_type>;
 template<typename SymbolT>
@@ -40,7 +43,8 @@ constexpr auto parse_group_of_symbols(
 
     while (stdr::none_of(terminals, func::equal_to(parser.current_token().type()))) {
         auto const end = parser.cursor();
-        if (separator != token_type::empty and parser.consume_and_advance().type() != separator) {
+        if (separator != token_type::empty and
+            parser.consume_and_advance().type() != separator) {
             return std::unexpected(
                 parse_error(
                     end.where(), source::view(start, end), 
@@ -95,7 +99,8 @@ auto parser::parse_program_heading()
     -> parse_result<program_heading> {
     auto result = program_heading{};
 
-    if (auto is_success = try_consume_and_advance_expecting(token_type::keyword_program)) {
+    if (auto is_success = 
+        try_consume_and_advance_expecting(token_type::keyword_program)) {
         return std::unexpected(*is_success);
     }
 
@@ -140,14 +145,101 @@ auto parser::parse_block()
     }
 
     if (current_token().type() == token_type::keyword_type) {
-
+        
     }
 
 
     
 }
 
+auto parser::parse_type_definition() 
+    -> parse_result<type_definition> {
+    auto result = type_definition();
 
+    TRY(result.name, parse_identifier());
+    TRY_OPT(try_consume_and_advance_expecting(token_type::equal));
+    TRY(result.types, parse_type());
+
+    return result;
+}
+
+auto parser::parse_type()
+    -> parse_result<type> {
+    return {};
+}
+
+auto parser::parse_function_declaration()
+    -> parse_result<function_declaration> {
+    using namespace std::literals;
+    auto result = function_declaration();
+    auto body = std::optional<block>();
+    TRY(result.head, parse_function_heading());
+    TRY_OPT(try_consume_and_advance_expecting(token_type::semicolon));
+
+    // TODO: forward declarations
+    
+    if (current_token().view().base() != "forward"sv) {
+        TRY(result.body, parse_block());
+    } else {
+        consume_and_advance();
+    }
+    TRY_OPT(try_consume_and_advance_expecting(token_type::semicolon));
+
+    return result;
+}
+
+auto parser::parse_procedure_heading()
+    -> parse_result<procedure_heading> {
+    auto result = procedure_heading();
+
+    return result;
+}
+
+auto parser::parse_function_heading()
+    -> parse_result<function_heading> {
+    auto result = function_heading();
+    TRY_OPT(try_consume_and_advance_expecting(token_type::keyword_function));
+    TRY(result.name, parse_identifier());
+
+    return result;
+}
+
+auto parser::parse_formal_parameter_list()
+    -> parse_result<group<formal_parameter>> {
+    auto result = group<formal_parameter>();
+    TRY_OPT(try_consume_and_advance_expecting(token_type::l_paren));
+    TRY(result, parse_group_of_symbols(
+        *this, &parser::parse_formal_parameter, 
+        {token_type::r_paren}, token_type::semicolon));
+    TRY_OPT(try_consume_and_advance_expecting(token_type::r_paren));
+
+    return result;
+}
+auto parser::parse_formal_parameter()
+    -> parse_result<formal_parameter> {
+    auto result = formal_parameter();
+    switch(current_token().type()) {
+        using enum token_type;
+        case keyword_function:  TRY(result, parse_function_heading()); break;
+        case keyword_procedure: 
+        default: TRY(result, parse_formal_parameter_simple()); break;
+    }
+
+    return result;
+}
+auto parser::parse_formal_parameter_simple() 
+    -> parse_result<formal_parameter_simple> {
+    auto result = formal_parameter_simple();
+    result.is_variable = maybe_consume_and_advance_expecting(token_type::keyword_var);
+    TRY(result.names, parse_group_of_symbols(
+        *this, &parser::parse_identifier, 
+        {token_type::colon}, token_type::comma) 
+    );
+    TRY_OPT(try_consume_and_advance_expecting(token_type::colon));
+    TRY(result.type, parse_identifier());
+
+    return result;
+}
 // seperated into a function because it gets repetetive
 // actual identifier "parsing" happens while lexing
 // identifier = [a-zA-z][a-zA-Z0-9]*
