@@ -6,14 +6,8 @@
 #include "fed/representations/parse-tree.hpp"
 #include "fed/parser/parse_error.hpp"
 #include "fed/scanner/token.hpp"
-#include "fed/utils/superutil.hpp"
 
 #include <expected>
-#include <functional>
-#include <initializer_list>
-#include <type_traits>
-#include <algorithm>
-#include <ranges>
 
 namespace stdr = std::ranges;
 
@@ -47,10 +41,15 @@ public:
         -> parse_result<program_heading>;
     auto parse_block()
         -> parse_result<block>;
+
     auto parse_type_definition()
         -> parse_result<type_definition>;
     auto parse_type()
         -> parse_result<type>;
+    auto parse_enumerated_type()
+        -> parse_result<enumerated_type>;
+
+
     auto parse_identifier()
         -> parse_result<identifier>;
     auto parse_formal_parameter_list()
@@ -63,6 +62,10 @@ public:
         -> parse_result<function_declaration>;
     auto parse_function_heading()
         -> parse_result<function_heading>;
+    auto parse_procedure_declaration()
+        -> parse_result<procedure_declaration>;
+    auto parse_procedure_heading()
+        -> parse_result<procedure_heading>;
 
 private:
     lexer m_lexer;

@@ -168,6 +168,39 @@ auto parser::parse_type()
     return {};
 }
 
+auto parser::parse_procedure_declaration()
+    -> parse_result<procedure_declaration> {
+    using namespace std::literals;
+    auto result = procedure_declaration();
+    auto body = std::optional<block>();
+    TRY(result.head, parse_procedure_heading());
+    TRY_OPT(try_consume_and_advance_expecting(token_type::semicolon));
+
+    
+    if (current_token().view().base() != "forward"sv) {
+        TRY(result.body, parse_block());
+    } else {
+        consume_and_advance();
+    }
+    TRY_OPT(try_consume_and_advance_expecting(token_type::semicolon));
+
+    return result;
+}
+
+
+auto parser::parse_procedure_heading()
+    -> parse_result<procedure_heading> {
+    auto result = procedure_heading();
+    TRY_OPT(try_consume_and_advance_expecting(token_type::keyword_procedure));
+    TRY(result.name, parse_identifier());
+    if (current_token().type() == token_type::l_paren) {
+        TRY(result.formal_parametr_list, parse_formal_parameter_list());
+    }
+    TRY_OPT(try_consume_and_advance_expecting(token_type::r_paren));
+
+    return result;
+}
+
 auto parser::parse_function_declaration()
     -> parse_result<function_declaration> {
     using namespace std::literals;
@@ -188,18 +221,17 @@ auto parser::parse_function_declaration()
     return result;
 }
 
-auto parser::parse_procedure_heading()
-    -> parse_result<procedure_heading> {
-    auto result = procedure_heading();
-
-    return result;
-}
-
 auto parser::parse_function_heading()
     -> parse_result<function_heading> {
     auto result = function_heading();
     TRY_OPT(try_consume_and_advance_expecting(token_type::keyword_function));
     TRY(result.name, parse_identifier());
+    if (current_token().type() == token_type::l_paren) {
+        TRY(result.formal_parametr_list, parse_formal_parameter_list());
+    }
+    TRY_OPT(try_consume_and_advance_expecting(token_type::r_paren));
+    TRY_OPT(try_consume_and_advance_expecting(token_type::colon));
+    TRY(result.return_type, parse_identifier());
 
     return result;
 }

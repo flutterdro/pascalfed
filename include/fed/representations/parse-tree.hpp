@@ -108,13 +108,11 @@ struct procedure_forward {
     identifier name;
     group<formal_parameter> formal_parameter_list;
 };
-struct procedure_implementation {
+struct procedure_declaration {
     procedure_heading head;
-    block body;
+    std::optional<block> body;
 };
 
-using procedure_declaration = 
-    std::variant<procedure_forward, procedure_implementation>;
 
 
 
@@ -127,7 +125,7 @@ struct program {
 
 struct enumerated_type {
     source::view region;
-    identifier_group identifiers;
+    group<identifier> identifiers;
 };
 
 
