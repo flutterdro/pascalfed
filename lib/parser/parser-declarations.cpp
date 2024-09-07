@@ -4,7 +4,12 @@
 #include "fed/representations/parse-tree.hpp"
 #include "fed/scanner/token.hpp"
 #include "fed/utils/superutil.hpp"
+
+#include <boost/charconv/chars_format.hpp>
+#include <boost/charconv/from_chars.hpp>
+
 #include <algorithm>
+#include <charconv>
 #include <initializer_list>
 #include <optional>
 #include <type_traits>
@@ -148,9 +153,58 @@ auto parser::parse_block()
         
     }
 
-
+    return result;
     
 }
+
+/// CONSTANT DECLARATION PARSING 
+
+auto parser::parse_constant()
+    -> parse_result<constant> {
+    // if sign is specified then constant is treated as a signed number_integer
+    auto result = constant();
+    auto is_signed = 
+        current_token().type() == token_type::minus;
+    if (is_signed) consume_and_advance();
+    
+    auto const constant_token = current_token();
+    // FUCK IT 
+    // TODO: proper check for number validity
+    if (constant_token.type() == token_type::number_integer) {
+        auto num_view = constant_token.view();
+        auto num = unsigned();
+        std::from_chars(num_view.data(), num_view.data() + num_view.size(), num);
+        if (is_signed) {
+            result = -static_cast<int>(num);
+        } else {
+            result = num;
+        }
+    } else if (constant_token.type() == token_type::number_real) {
+        auto num_view = constant_token.view();
+        auto num = double();
+        // I am losing my fucking mind
+        // clang doesn't support fp from_chars 
+        // IT IS IN GTEH FUCKIGN C++17. 
+        // I had to pull boost in (frankly because I am too lazy to search 
+        // for the alternatives but still...) 
+        boost::charconv::from_chars(
+            num_view.data(), num_view.data() + num_view.size(), 
+            num, boost::charconv::chars_format::general
+        );
+        result = is_signed ? -num : num;
+    } else if (constant_token.type() == token_type::identifier) {
+        result = identifier(constant_token.view());
+    } else if (constant_token.type() == token_type::literal) {
+        result = constant_token
+            .view()
+            .subview(1, constant_token.view().size() - 2)
+            .base();
+    }
+
+    return result;
+}
+
+/// TYPE DECLARATION PARSING
 
 auto parser::parse_type_definition() 
     -> parse_result<type_definition> {
@@ -166,6 +220,30 @@ auto parser::parse_type_definition()
 auto parser::parse_type()
     -> parse_result<type> {
     return {};
+}
+
+auto parser::parse_array_types() 
+    -> parse_result<array_type> {
+
+}
+
+auto parser::parse_enumerated_type()
+    -> parse_result<enumerated_type> {
+    auto result = enumerated_type();
+
+    TRY_OPT(try_consume_and_advance_expecting(token_type::l_paren));
+    TRY(result.identifiers, parse_group_of_symbols(
+        *this, &parser::parse_identifier, 
+        {token_type::r_paren}, token_type::comma)
+    );
+    TRY_OPT(try_consume_and_advance_expecting(token_type::r_paren));
+
+    return result;
+}
+
+auto parser::parse_subrange_type()
+    -> parse_result<subrange_type> {
+    auto result = subrange_type();
 }
 
 auto parser::parse_procedure_declaration()

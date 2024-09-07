@@ -48,6 +48,13 @@ public:
         -> parse_result<type>;
     auto parse_enumerated_type()
         -> parse_result<enumerated_type>;
+    auto parse_subrange_type()
+        -> parse_result<subrange_type>;
+    auto parse_array_types()
+        -> parse_result<array_type>;
+
+    auto parse_constant()
+        -> parse_result<constant>;
 
 
     auto parse_identifier()

@@ -13,6 +13,10 @@ target_sources(fed_frontend
         representations/raw-source.cpp
 )
 
+find_package(Boost REQUIRED)
+
+target_link_libraries(fed_frontend PRIVATE boost::boost)
+
 
 
 

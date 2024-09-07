@@ -26,6 +26,12 @@ struct lexer {
         -> token_view;
     auto advance_lexer()
         -> void;
+    
+    template<typename F>
+    auto current_char_is(F&& predicate)
+        -> bool { return m_cursor != m_source.end() and predicate(*m_cursor); }
+    auto current_char_is(char character) 
+        -> bool { return m_cursor != m_source.end() and *m_cursor == character; }
 
     auto lex_as_word() noexcept
         -> token_view;

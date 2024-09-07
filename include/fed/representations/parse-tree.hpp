@@ -2,6 +2,7 @@
 #define FED_PARSE_TREE_HPP_
 
 #include "fed/representations/raw-source.hpp"
+#include <memory>
 #include <string_view>
 #include <variant>
 #include <optional>
@@ -12,7 +13,7 @@ namespace fed {
 
 template<typename T>
 using group = std::vector<T>;
-using identifier = source::view;
+
 using identifier_group = std::vector<std::string_view>;
 
 struct expression;
@@ -21,6 +22,10 @@ struct binary_simple_expression;
 struct factor;
 struct enumerated_type;
 struct term;
+
+struct identifier {
+    source::view view;
+};
 
 struct program_heading {
     source::view region;
@@ -35,7 +40,7 @@ struct label_declaration {
 // constant is either a number, a constant identifier 
 // (possibly signed), a character, or a string
 // TODO: handle constant id 
-using constant = std::variant<int, double, char, std::string_view>;
+using constant = std::variant<int, unsigned, double, identifier, std::string_view>;
 
 struct constant_definition {
     source::view region;
@@ -47,8 +52,61 @@ struct simple_type {};
 struct structured_type {};
 struct pointer_type {};
 
-using type = std::variant<simple_type, structured_type, pointer_type>;
+struct enumerated_type;
+struct subrange_type;
+struct alias_type;
+struct array_type;
+struct record_type;
+struct set_type;
 
+using type = std::variant<
+    enumerated_type,
+    subrange_type,
+    alias_type,
+    array_type,
+    record_type,
+    set_type
+>;
+
+template<typename T>
+class handle {
+public:
+    handle(T&& val)
+        : m_handle(std::make_unique<T>(std::move(val))) {}
+
+    auto operator*() noexcept
+        -> T& { return *m_handle; }
+private:
+    std::unique_ptr<T> m_handle;
+};
+
+
+
+
+struct enumerated_type {
+    source::view region;
+    group<identifier> identifiers;
+};
+
+struct subrange_type {
+    constant begin;
+    constant end;
+};
+
+struct array_type {
+    group<type> index_types;
+    handle<type> component_type;
+};
+
+struct alias_type {
+    identifier other_type_name;
+};
+struct record_type {
+    
+};
+struct set_type {
+
+};
 
 struct type_definition {
     source::view region;
@@ -89,10 +147,6 @@ struct function_heading {
     identifier return_type;
 };
 
-struct function_forward {
-    identifier name;
-    group<formal_parameter> formal_parameter_list;
-};
 struct function_declaration {
     function_heading head;
     std::optional<block> body;
@@ -104,10 +158,7 @@ struct procedure_heading {
     identifier return_type;
 };
 
-struct procedure_forward {
-    identifier name;
-    group<formal_parameter> formal_parameter_list;
-};
+
 struct procedure_declaration {
     procedure_heading head;
     std::optional<block> body;
@@ -123,10 +174,7 @@ struct program {
     block           body;
 };
 
-struct enumerated_type {
-    source::view region;
-    group<identifier> identifiers;
-};
+
 
 
 struct expression {

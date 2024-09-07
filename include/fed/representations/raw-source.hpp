@@ -65,6 +65,8 @@ struct view {
         -> sentinel;
     auto data() const noexcept
         -> char const*;
+    auto size() const noexcept
+        -> std::size_t { return m_view.size(); }
     auto base() const noexcept
         -> underlying_view_t { return m_view; }
 

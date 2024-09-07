@@ -121,6 +121,28 @@ auto lexer::lex_as_literal() noexcept
 auto lexer::lex_as_number() noexcept
     -> token_view {
     auto result = token_view();
+    auto result_token_type = token_type::number_integer;
+    auto const start = m_cursor;
+
+    auto is_digit = [](char character) { return std::isdigit(character); };
+
+    while (++m_cursor != m_source.end() and std::isdigit(*m_cursor)) {}
+
+    if (m_cursor != m_source.end()) {
+        if (*m_cursor == '.') {
+            result_token_type = token_type::number_real;
+            while (++m_cursor != m_source.end() and std::isdigit(*m_cursor)) {}
+        }
+        if (current_char_is('e')) {
+            ++m_cursor;
+            result_token_type = token_type::number_real;
+            if (current_char_is('+') or current_char_is('-')) {
+                ++m_cursor;
+            }
+            while (current_char_is(is_digit)) { ++m_cursor; }
+        }
+
+    }
 
     return result;
 }
