@@ -2,6 +2,7 @@
 #define FED_PARSE_TREE_HPP_
 
 #include "fed/representations/raw-source.hpp"
+#include <cmath>
 #include <memory>
 #include <string_view>
 #include <variant>
@@ -58,6 +59,7 @@ struct alias_type;
 struct array_type;
 struct record_type;
 struct set_type;
+struct file_type;
 
 using type = std::variant<
     enumerated_type,
@@ -65,12 +67,14 @@ using type = std::variant<
     alias_type,
     array_type,
     record_type,
-    set_type
+    set_type,
+    file_type
 >;
 
 template<typename T>
 class handle {
 public:
+    handle() = default;
     handle(T&& val)
         : m_handle(std::make_unique<T>(std::move(val))) {}
 
@@ -98,14 +102,34 @@ struct array_type {
     handle<type> component_type;
 };
 
+struct set_type {
+    handle<type> base;
+};
+
+struct file_type {
+    handle<type> component_type;
+};
+
 struct alias_type {
     identifier other_type_name;
 };
-struct record_type {
-    
+struct fixed_field {
+    group<identifier> names;
+    handle<type> type;
 };
-struct set_type {
+struct variant {
+    group<constant> matches;
+    handle<record_type> fields;
+};
+struct variant_field {
+    std::optional<identifier> name;
+    handle<type> tag;
+    group<variant> variants;
+};
 
+struct record_type {
+    group<fixed_field> fixed_fields; 
+    std::optional<variant_field> variant_part;
 };
 
 struct type_definition {

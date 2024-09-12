@@ -22,7 +22,7 @@ public:
 
     auto consume_and_advance()
         -> token_view;
-    auto try_consume_and_advance_expecting(token_type token)
+    auto consume_and_advance_expecting(token_type token)
         -> std::optional<parse_error>;
     auto maybe_consume_and_advance_expecting(token_type token)
         -> bool;
@@ -50,8 +50,22 @@ public:
         -> parse_result<enumerated_type>;
     auto parse_subrange_type()
         -> parse_result<subrange_type>;
-    auto parse_array_types()
+    auto parse_array_type()
         -> parse_result<array_type>;
+    auto parse_set_type()
+        -> parse_result<set_type>;
+    auto parse_file_type()
+        -> parse_result<file_type>;
+    auto parse_record_type()
+        -> parse_result<record_type>;
+    auto parse_field_list()
+        -> parse_result<record_type>;
+    auto parse_fixed_field()
+        -> parse_result<fixed_field>;
+    auto parse_variant_part()
+        -> parse_result<variant_field>;
+    auto parse_variant()
+        -> parse_result<variant>;
 
     auto parse_constant()
         -> parse_result<constant>;
