@@ -7,6 +7,23 @@
 
 namespace fed {
 
+struct non_copyable { 
+    constexpr non_copyable(non_copyable const&) = delete;
+    constexpr auto operator=(non_copyable const&)
+        -> non_copyable& = delete;
+};
+
+struct non_movable {
+    constexpr non_movable(non_movable&&) = delete;
+    constexpr auto operator=(non_movable&&)
+        -> non_movable& = delete;
+};
+
+template<typename... Ts>
+struct overloaded : Ts... {
+    using Ts::operator()...;
+};
+
 namespace func {
 
 namespace stdr = std::ranges;

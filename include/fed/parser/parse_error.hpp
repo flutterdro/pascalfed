@@ -9,7 +9,7 @@
 
 namespace fed {
 
-class parse_error : compilation_error {
+class parse_error  {
 public:
     enum class type {
         missing_token,
@@ -23,14 +23,14 @@ public:
     );
         
     auto message() const 
-        -> std::string override;
+        -> std::string;
     auto location() const
-        -> source::location override;
+        -> source::location;
     
     auto set_region(source::view region) noexcept
         -> void;
  
-    ~parse_error() override = default;
+    ~parse_error() = default;
 private:
     source::location m_location;
     source::view m_region;

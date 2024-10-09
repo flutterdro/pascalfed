@@ -10,6 +10,8 @@ target_sources(fed_frontend
         parser/parser-declarations.cpp
         parser/parser-statements.cpp
         parser/parser-expressions.cpp
+        parser/context.cpp
+        diagnostics/buffer.cpp
         representations/raw-source.cpp
 )
 

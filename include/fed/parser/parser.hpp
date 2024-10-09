@@ -1,6 +1,8 @@
 #ifndef FED_PARSER_HPP_
 #define FED_PARSER_HPP_
 
+#include "fed/diagnostics/buffer.hpp"
+#include "fed/parser/context.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/scanner/lex.hpp"
 #include "fed/representations/parse-tree.hpp"
@@ -36,60 +38,73 @@ public:
     // after parsed source
 
     auto parse_program() 
-        -> parse_result<program>; 
+        -> parse_result<ast::handle<ast::program>>; 
     auto parse_program_heading()
-        -> parse_result<program_heading>;
+        -> parse_result<ast::handle<ast::program_heading>>;
     auto parse_block()
-        -> parse_result<block>;
+        -> parse_result<ast::handle<ast::block>>;
 
     auto parse_type_definition()
-        -> parse_result<type_definition>;
+        -> parse_result<ast::handle<ast::type_definition>>;
+    auto parse_variable_declaration()
+        -> parse_result<ast::handle<ast::variable_declaration>>;
     auto parse_type()
-        -> parse_result<type>;
+        -> parse_result<ast::handle<ast::type>>;
     auto parse_enumerated_type()
-        -> parse_result<enumerated_type>;
+        -> parse_result<ast::handle<ast::enumerated_type>>;
     auto parse_subrange_type()
-        -> parse_result<subrange_type>;
+        -> parse_result<ast::handle<ast::subrange_type>>;
     auto parse_array_type()
-        -> parse_result<array_type>;
+        -> parse_result<ast::handle<ast::array_type>>;
     auto parse_set_type()
-        -> parse_result<set_type>;
+        -> parse_result<ast::handle<ast::set_type>>;
     auto parse_file_type()
-        -> parse_result<file_type>;
+        -> parse_result<ast::handle<ast::file_type>>;
     auto parse_record_type()
-        -> parse_result<record_type>;
+        -> parse_result<ast::handle<ast::record_type>>;
     auto parse_field_list()
-        -> parse_result<record_type>;
+        -> parse_result<ast::handle<ast::record_type>>;
     auto parse_fixed_field()
-        -> parse_result<fixed_field>;
+        -> parse_result<ast::handle<ast::fixed_field>>;
     auto parse_variant_part()
-        -> parse_result<variant_field>;
+        -> parse_result<ast::handle<ast::variant_field>>;
     auto parse_variant()
-        -> parse_result<variant>;
+        -> parse_result<ast::handle<ast::variant>>;
 
     auto parse_constant()
-        -> parse_result<constant>;
+        -> parse_result<ast::handle<ast::constant>>;
 
 
     auto parse_identifier()
-        -> parse_result<identifier>;
+        -> parse_result<ast::handle<ast::identifier>>;
     auto parse_formal_parameter_list()
-        -> parse_result<group<formal_parameter>>;
+        -> parse_result<ast::group<ast::handle<ast::formal_parameter>>>;
     auto parse_formal_parameter()
-        -> parse_result<formal_parameter>;
+        -> parse_result<ast::handle<ast::formal_parameter>>;
     auto parse_formal_parameter_simple()
-        -> parse_result<formal_parameter_simple>;
+        -> parse_result<ast::handle<ast::formal_parameter_simple>>;
     auto parse_function_declaration()
-        -> parse_result<function_declaration>;
+        -> parse_result<ast::handle<ast::function_declaration>>;
     auto parse_function_heading()
-        -> parse_result<function_heading>;
+        -> parse_result<ast::handle<ast::function_heading>>;
     auto parse_procedure_declaration()
-        -> parse_result<procedure_declaration>;
+        -> parse_result<ast::handle<ast::procedure_declaration>>;
     auto parse_procedure_heading()
-        -> parse_result<procedure_heading>;
+        -> parse_result<ast::handle<ast::procedure_heading>>;
 
+
+    auto parse_expression()
+        -> parse_result<ast::handle<ast::expression>>;
+    auto parse_binary_expression()
+        -> parse_result<ast::handle<ast::binary_expression>>;
+    auto parse_unary_expression()
+        -> parse_result<ast::handle<ast::unary_expression>>;
+    auto parse_expression_leaf()
+        -> parse_result<ast::handle<ast::expression_leaf>>;
 private:
     lexer m_lexer;
+    diagnostics_buffer& m_diagnostics;
+    semantic_context m_context;
 };
 
 
