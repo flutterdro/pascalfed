@@ -11,7 +11,7 @@ public:
     internal_error(
         std::string const& message,
         std::source_location location = std::source_location::current()
-    );
+    ) : std::runtime_error(message), m_location(location) {}
     auto where() const noexcept
         -> std::source_location;
 private:

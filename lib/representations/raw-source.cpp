@@ -56,7 +56,15 @@ auto full_view::subview(iterator start, iterator end) const noexcept
         end
     }; 
 }
+auto view::subview(std::size_t start, std::size_t count) const noexcept
+    -> view {}
 
+auto view::begin() const noexcept
+    -> iterator {}
+auto view::end() const noexcept
+    -> sentinel {}
+auto view::data() const noexcept
+    -> char const* {}
 static_assert(std::forward_iterator<full_view::iterator>);
 
 } // namespace fed::source

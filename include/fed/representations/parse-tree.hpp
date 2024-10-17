@@ -4,6 +4,10 @@
 #include "fed/diagnostics/internal-error.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/representations/symbol-table.hpp"
+#include "fed/utils/superutil.hpp"
+
+#include <fmt/base.h>
+#include <fmt/format.h>
 
 #include <memory>
 #include <string_view>
@@ -19,7 +23,7 @@ template<typename T>
 class handle {
 public:
     handle() 
-        : m_handle(std::make_unique_for_overwrite<T>()) {}
+        : m_handle(nullptr) {}
     handle(T&& val)
         : m_handle(std::make_unique<T>(std::move(val))) {}
     handle(handle const&) = delete;
@@ -29,7 +33,7 @@ public:
         : m_handle(std::move(derived)) {}
     auto operator=(T&& val)
         -> handle& {
-        *m_handle = std::move(val);
+        m_handle = std::make_unique<T>(std::move(val));
 
         return *this;
     }
@@ -85,6 +89,98 @@ private:
 
 };
 
+template<typename... Ts>
+class variant_handle {
+public:
+    template<typename T>
+    friend class handle;
+    constexpr variant_handle() = default;
+    constexpr variant_handle(variant_handle&&) noexcept = default;
+    constexpr auto operator=(variant_handle&&) noexcept
+        -> variant_handle& = default;
+    template<typename T>
+    constexpr variant_handle(handle<T> val) noexcept
+        : m_variant(std::move(val)) {}
+    template<typename T>
+    constexpr auto operator=(handle<T> val) noexcept
+        -> variant_handle& { 
+        m_variant = std::move(val);
+        return *this;
+    }
+
+    template<typename T>
+    friend constexpr auto holds_alternative(variant_handle const& variant) noexcept
+        -> bool { return std::holds_alternative<handle<T>>(variant.m_variant); }
+    template<typename T>
+    friend constexpr auto get(auto&& variant) noexcept 
+        -> decltype(auto) { return std::get<T>(FWD(variant)); }
+    friend constexpr auto visit(auto&& visitor, auto&&... variants)
+        -> decltype(auto) { 
+        return std::visit(
+            func::psie_combinator(
+                FWD(visitor), 
+                func::deep_dereference
+            ), FWD(variants).m_variant...
+        ); 
+    }
+
+    constexpr auto is_poisoned() const noexcept
+        -> bool { 
+        return std::visit(
+            [](auto const& val) { return val.is_poisoned(); },
+            m_variant
+        );
+    }
+private:
+    std::variant<handle<Ts>...> m_variant;
+};
+template<typename... Ts>
+class handle<variant_handle<Ts...>> {
+public:
+    using value_type = variant_handle<Ts...>;
+    handle() = default;
+    handle(value_type&& val)
+        : m_handle(std::move(val)) {}
+    handle(handle const&) = delete;
+    handle(handle&&) noexcept = default;
+    template<typename U>
+    handle(handle<U>&& derived)
+        : m_handle(std::move(derived)) {}
+    auto operator=(value_type&& val)
+        -> handle& {
+        m_handle = std::move(val);
+
+        return *this;
+    }
+    template<typename U>
+    friend class handle;
+    auto operator=(handle const&) = delete;
+    auto operator=(handle&&) noexcept -> handle& = default;
+    template<typename U>
+    auto operator=(handle<U>&& derived)
+        -> handle& {
+        *this = std::move(derived);
+
+        return *this;
+    }
+
+    auto operator*()
+        -> value_type& {
+        if (is_poisoned()) throw internal_error("accessing a poisoined handle");
+        return m_handle;
+    }
+    auto operator*() const 
+        -> value_type const& { 
+        if (is_poisoned()) throw internal_error("accessing a poisoined handle");
+        return m_handle;
+    }
+    auto is_poisoned() const
+        -> bool { return m_handle.is_poisoned(); }
+private:
+    variant_handle<Ts...> m_handle{};
+    bool m_is_poisoned{};
+
+};
 template<typename T>
 using group = std::vector<T>;
 
@@ -269,7 +365,7 @@ struct binary_expression;
 struct unary_expression;
 struct expression_leaf;
 
-using expression = std::variant<binary_expression, unary_expression, expression_leaf>;
+using expression = variant_handle<binary_expression, unary_expression, expression_leaf>;
 
 enum class binary_operation {
     add,
@@ -305,7 +401,7 @@ struct binary_expression {
 };
 
 struct expression_leaf {
-
+    char character;
 };
 
 struct unary_expression {
@@ -317,8 +413,68 @@ struct unary_expression {
 
 
 
+
+
 } // namespace fed
 
+template<>
+struct fmt::formatter<fed::ast::binary_operation> {
+    constexpr auto parse(fmt::format_parse_context& ctx) 
+        -> fmt::format_parse_context::iterator { return ctx.begin(); }
+    constexpr auto format(fed::ast::binary_operation const& op, fmt::format_context& ctx) const 
+        -> fmt::format_context::iterator {
+        switch (op) {
+
+        case fed::ast::binary_operation::add: *ctx.out()++ = '+';break;
+        case fed::ast::binary_operation::substract:*ctx.out()++ = '-';break;
+        case fed::ast::binary_operation::or_:*ctx.out()++ = 'o';break;
+        case fed::ast::binary_operation::multiply:*ctx.out()++ = '*';break;
+        case fed::ast::binary_operation::integer_divide:*ctx.out()++ = '/';break;
+        case fed::ast::binary_operation::real_divide:*ctx.out()++ = '/';break;
+        case fed::ast::binary_operation::modulo:*ctx.out()++ = '%';break;
+        case fed::ast::binary_operation::and_:*ctx.out()++ = 'a';break;
+        case fed::ast::binary_operation::equal:*ctx.out()++ = '=';break;
+        case fed::ast::binary_operation::not_equal:*ctx.out()++ = '=';break;
+        case fed::ast::binary_operation::greater:*ctx.out()++ = '>';break;
+        case fed::ast::binary_operation::less:*ctx.out()++ = '<';break;
+        case fed::ast::binary_operation::greater_or_equal:*ctx.out()++ = '>';break;
+        case fed::ast::binary_operation::less_or_equal:*ctx.out()++ = '<';break;
+        case fed::ast::binary_operation::in:*ctx.out()++ = 'i';break;
+          break;
+        }
+        return ctx.out();
+    }
+};
+template<>
+struct fmt::formatter<fed::ast::expression> {
+    int depth = 0;
+    constexpr formatter() = default;
+    constexpr formatter(int depth_) 
+        : depth(depth_) {}
+    constexpr auto parse(fmt::format_parse_context& ctx) 
+        -> fmt::format_parse_context::iterator { return ctx.begin(); }
+    constexpr auto format(fed::ast::expression const& expr, fmt::format_context& ctx) const 
+        -> fmt::format_context::iterator {
+        int a = 0;
+        ctx.out() = fmt::format_to(ctx.out(), "{0:>{1}}", "", 2*depth);
+        visit(
+        fed::overloaded{
+            [&ctx, this](fed::ast::binary_expression const& exp) {
+                    ctx.out() = fmt::format_to(ctx.out(), "|binary expression {}\n", exp.operation);
+                    ctx.out() = fmt::formatter<fed::ast::expression>(this->depth + 1).format(*exp.lhs, ctx);
+                    ctx.out() = fmt::formatter<fed::ast::expression>(this->depth + 1).format(*exp.rhs, ctx);
+                },
+            [&ctx, this](fed::ast::unary_expression const& exp) {
+                    ctx.out() = fmt::format_to(ctx.out(), "|unary expression\n");
+                    ctx.out() = fmt::formatter<fed::ast::expression>(this->depth + 1).format(*exp.operand, ctx);
+                },
+            [&ctx, this](fed::ast::expression_leaf const& exp) {
+                    ctx.out() = fmt::format_to(ctx.out(), "|leaf letter {}\n", exp.character);
+                }
+        }, expr);
+        return ctx.out();
+    }
+};
 
 
 #endif

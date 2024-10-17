@@ -10,7 +10,18 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
+if(CMAKE_SYSTEM_NAME MATCHES "Darwin"
+        AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64"
+        AND CMAKE_CXX_COMPILER_ID MATCHES "Clang"
+        AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 18)
+    link_libraries(/opt/homebrew/opt/llvm/lib/unwind/libunwind.dylib)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/opt/homebrew/opt/llvm/lib/c++")
+endif()
+
 option(FED_BUILD_TESTS "Build tests" ON)
+
+add_compile_options(-fsanitize=address)
+add_link_options(-fsanitize=address)
 
 add_subdirectory(lib)
 

@@ -6,6 +6,7 @@
 #include "fed/utils/superutil.hpp"
 #include "fed/diagnostics/buffer.hpp"
 
+#include <__atomic/memory_order.h>
 #include <boost/charconv/chars_format.hpp>
 #include <boost/charconv/from_chars.hpp>
 
@@ -82,7 +83,11 @@ auto parse_maybe(parser& parser, parse_function_ptr<SymbolT> func, token_type tr
 
 auto parser::consume_and_advance_expecting(token_type token)
     -> std::optional<parse_error> {
-
+    if (current_token().type() == token) {
+        consume_and_advance();
+        return std::nullopt;
+    }
+    else return parse_error();
 
 }
 

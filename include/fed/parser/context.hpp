@@ -16,7 +16,7 @@ template<typename T>
 using lookup_result = std::expected<T, contextual_error>;
 class semantic_context {
 public:
-    semantic_context();
+    semantic_context() = default;
     auto initialize_scope()
         -> void;
     auto lookup_type(std::string_view name) 
@@ -49,9 +49,9 @@ public:
     auto type_check(sym::type::info lhs, sym::type::info rhs)
         -> check_result; 
 private:
-    sym::table              m_symbol_table;
-    sym::scope_tree         m_scoped_names;
-    sym::scope_tree::walker m_current_scope;
+    sym::table              m_symbol_table{};
+    sym::scope_tree         m_scoped_names{};
+    sym::scope_tree::walker m_current_scope{};
 };
 
 

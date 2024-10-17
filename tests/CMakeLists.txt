@@ -12,7 +12,8 @@ target_link_libraries(frontend_tests
 
 target_sources(frontend_tests
     PRIVATE
-        frontend/lexing.cpp
+        frontend/lexing.cpp 
+        frontend/parsing-expressions.cpp
 )
 
 include(CTest)

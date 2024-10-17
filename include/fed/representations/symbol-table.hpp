@@ -121,6 +121,7 @@ class scope_tree {
 public:
     class walker {
     public:
+        walker() = default;
         walker(scope_tree* base) 
             : m_base(base) {}
         auto advance_to_child(std::size_t index) 
@@ -144,6 +145,7 @@ public:
         scope_tree* m_base;
     };
 public:
+    scope_tree() = default;
     scope_tree(scope_tree const&) = delete;
     scope_tree(scope_tree&&) = default;
     auto concieve_at(walker walk)

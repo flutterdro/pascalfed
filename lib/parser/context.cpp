@@ -208,5 +208,9 @@ auto semantic_context::lookup(sym::type::id id) const
     -> sym::type::info { return m_symbol_table.types().lookup(id); }
 auto semantic_context::lookup(sym::constant::id id) const
     -> sym::constant::info { return m_symbol_table.constants().lookup(id); }
+auto semantic_context::initialize_scope() 
+    -> void {}
+auto semantic_context::finalize_scope()
+    -> void {}
 
 } // namespace fed

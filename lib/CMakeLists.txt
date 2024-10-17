@@ -10,14 +10,16 @@ target_sources(fed_frontend
         parser/parser-declarations.cpp
         parser/parser-statements.cpp
         parser/parser-expressions.cpp
+        parser/parser.cpp
         parser/context.cpp
         diagnostics/buffer.cpp
         representations/raw-source.cpp
 )
 
 find_package(Boost REQUIRED)
+find_package(fmt REQUIRED)
 
-target_link_libraries(fed_frontend PRIVATE boost::boost)
+target_link_libraries(fed_frontend PRIVATE boost::boost fmt::fmt)
 
 
 

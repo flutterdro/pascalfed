@@ -24,6 +24,8 @@ lexer::lexer(source::full_view view)
         m_is_relexing(false)
 {}
 
+auto lexer::cursor() const noexcept
+    -> source::iterator { return m_cursor; }
 
 auto lexer::advance_lexer()
     -> void {
@@ -90,7 +92,7 @@ auto lexer::lex_as_word() noexcept
         );
 
     while (m_cursor != m_source.end() and 
-        is_valid_identifier_symbol(*m_cursor++)) {}
+        is_valid_identifier_symbol(*m_cursor)) { ++m_cursor; }
 
     auto const identifier_view = source::view(start, m_cursor);
 

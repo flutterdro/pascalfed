@@ -5,6 +5,9 @@
 #include <algorithm>
 #include <utility>
 
+#define FWD(expr) std::forward<decltype(expr)>(expr)
+#define LIFT(func) [](auto&&... xs) { return func(FWD(xs)...); }
+
 namespace fed {
 
 struct non_copyable { 
@@ -25,6 +28,46 @@ struct overloaded : Ts... {
 };
 
 namespace func {
+
+inline constexpr auto dereference = [](auto&& pointer) 
+    -> decltype(auto) { 
+    return *pointer;
+};
+
+inline constexpr auto deep_dereference = [](auto&& pointer) 
+    -> decltype(auto) { 
+    return std::forward_like<decltype(pointer)>(*pointer);
+};
+
+namespace detail {
+template<typename F>
+struct func_wrap : F {
+    using F::operator();
+    constexpr friend auto operator|(auto&& f1, auto&& f2) {
+        return [_f1 = FWD(f1), _f2 = FWD(f2)](auto&&... xs) {
+            return _f1(_f2(FWD(xs)...));
+        };
+    }
+};
+}
+
+inline constexpr auto be_combinator = [](auto&&... funcs) {
+    return [..._funcs = detail::func_wrap(FWD(funcs))](auto&& x) {
+        return (_funcs | ...)(FWD(x));
+    };
+};
+
+inline constexpr auto b1e_combinator = [](auto&& f, auto&& g) {
+    return [_f = FWD(f), _g = FWD(g)](auto&&... xs) {
+        return _f(_g(FWD(xs)...));
+    };
+};
+
+inline constexpr auto psie_combinator = [](auto&& f, auto&& g) {
+    return [_f = FWD(f), _g = FWD(g)](auto&&... xs) {
+        return _f(_g(FWD(xs))...);
+    };
+};
 
 namespace stdr = std::ranges;
 constexpr auto equal_to(auto&& value) noexcept {

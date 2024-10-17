@@ -9,6 +9,7 @@
 #include "fed/parser/parse_error.hpp"
 #include "fed/scanner/token.hpp"
 
+#include <concepts>
 #include <expected>
 
 namespace stdr = std::ranges;
@@ -19,18 +20,30 @@ template<typename T>
 using parse_result = std::expected<T, parse_error>;
 
 class parser {
+public:
+    struct precedence {
+        enum level {
+            relational = 0,
+            lowest = relational,
+            adding,
+            multiplying,
+            highest = multiplying,
+        };
+    };
 public: 
-    explicit parser(std::string_view source);
+    explicit parser(source::full_view source, diagnostics_buffer& buffer);
 
     auto consume_and_advance()
         -> token_view;
     auto consume_and_advance_expecting(token_type token)
         -> std::optional<parse_error>;
+    auto consume_and_advance_expecting(std::predicate<token_type> auto&& func)
+        -> std::optional<parse_error>;
     auto maybe_consume_and_advance_expecting(token_type token)
         -> bool;
     auto current_token()
         -> token_view;
-    auto cursor()
+    auto cursor() const noexcept
         -> source::iterator;
 
     // every parse function has a contract
@@ -101,6 +114,14 @@ public:
         -> parse_result<ast::handle<ast::unary_expression>>;
     auto parse_expression_leaf()
         -> parse_result<ast::handle<ast::expression_leaf>>;
+
+private:
+    auto parse_expression(ast::handle<ast::expression> lhs, precedence::level threshold)
+        -> parse_result<ast::handle<ast::expression>>;
+    auto parse_lhs(precedence::level threshold)
+        -> parse_result<ast::handle<ast::expression>>;
+    auto parse_rhs(ast::handle<ast::expression> lhs, precedence::level threshold)
+        -> parse_result<ast::handle<ast::binary_expression>>;
 private:
     lexer m_lexer;
     diagnostics_buffer& m_diagnostics;

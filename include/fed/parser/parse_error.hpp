@@ -15,12 +15,14 @@ public:
         missing_token,
         unexpected_token,
     };
+    parse_error() = default;
 
     parse_error(
         source::location location,
         source::view region,
         type type, token_type expected_token
-    );
+    )
+        : parse_error() {}
         
     auto message() const 
         -> std::string;
