@@ -12,8 +12,6 @@
 #include <concepts>
 #include <expected>
 
-namespace stdr = std::ranges;
-
 namespace fed {
 
 template<typename T>
@@ -37,14 +35,22 @@ public:
         -> token_view;
     auto consume_and_advance_expecting(token_type token)
         -> std::optional<parse_error>;
+    auto advance_until(std::predicate<token_type> auto&& func)
+        -> void;
     auto consume_and_advance_expecting(std::predicate<token_type> auto&& func)
         -> std::optional<parse_error>;
     auto maybe_consume_and_advance_expecting(token_type token)
         -> bool;
     auto current_token()
         -> token_view;
+    auto current_token_is(std::predicate<token_type> auto&& pred)
+        -> bool;
     auto cursor() const noexcept
         -> source::iterator;
+    auto context() noexcept
+        -> semantic_context&;
+    auto diagnostics() noexcept
+        -> diagnostics_buffer&;
 
     // every parse function has a contract
     // they must advance lexer to the next token 
@@ -58,7 +64,7 @@ public:
         -> parse_result<ast::handle<ast::block>>;
 
     auto parse_type_definition()
-        -> parse_result<ast::handle<ast::type_definition>>;
+        -> parse_result<ast::handle<ast::type_declaration>>;
     auto parse_variable_declaration()
         -> parse_result<ast::handle<ast::variable_declaration>>;
     auto parse_type()
@@ -78,18 +84,18 @@ public:
     auto parse_field_list()
         -> parse_result<ast::handle<ast::record_type>>;
     auto parse_fixed_field()
-        -> parse_result<ast::handle<ast::fixed_field>>;
+        -> parse_result<ast::handle<ast::fixed_fields>>;
     auto parse_variant_part()
         -> parse_result<ast::handle<ast::variant_field>>;
     auto parse_variant()
-        -> parse_result<ast::handle<ast::variant>>;
+        -> parse_result<ast::handle<ast::variant_part>>;
 
     auto parse_constant()
         -> parse_result<ast::handle<ast::constant>>;
 
 
     auto parse_identifier()
-        -> parse_result<ast::handle<ast::identifier>>;
+        -> parse_result<ast::identifier>;
     auto parse_formal_parameter_list()
         -> parse_result<ast::group<ast::handle<ast::formal_parameter>>>;
     auto parse_formal_parameter()
@@ -107,21 +113,33 @@ public:
 
 
     auto parse_expression()
-        -> parse_result<ast::handle<ast::expression>>;
+        -> parse_result<ast::expression>;
     auto parse_binary_expression()
-        -> parse_result<ast::handle<ast::binary_expression>>;
+        -> parse_result<ast::binary_expression>;
     auto parse_unary_expression()
-        -> parse_result<ast::handle<ast::unary_expression>>;
+        -> parse_result<ast::unary_expression>;
     auto parse_expression_leaf()
-        -> parse_result<ast::handle<ast::expression_leaf>>;
+        -> parse_result<ast::expression_leaf>;
 
 private:
-    auto parse_expression(ast::handle<ast::expression> lhs, precedence::level threshold)
-        -> parse_result<ast::handle<ast::expression>>;
+    auto determine_name_type(ast::identifier_view)
+        -> ast::bare_name;
+    auto parse_expression_leaf(ast::expression_leaf)
+        -> parse_result<ast::expression_leaf>;
+    auto parse_call(ast::expression_leaf)
+        -> parse_result<ast::expression_leaf>;
+    auto parse_indexing(ast::expression_leaf)
+        -> parse_result<ast::expression_leaf>;
+    auto parse_dereferencing(ast::expression_leaf)
+        -> parse_result<ast::expression_leaf>;
+    auto parse_member_access(ast::expression_leaf)
+        -> parse_result<ast::expression_leaf>;
+    auto parse_expression(ast::expression lhs, precedence::level threshold)
+        -> parse_result<ast::expression>;
     auto parse_lhs(precedence::level threshold)
-        -> parse_result<ast::handle<ast::expression>>;
-    auto parse_rhs(ast::handle<ast::expression> lhs, precedence::level threshold)
-        -> parse_result<ast::handle<ast::binary_expression>>;
+        -> parse_result<ast::expression>;
+    auto parse_rhs(ast::expression lhs, precedence::level threshold)
+        -> parse_result<ast::binary_expression>;
 private:
     lexer m_lexer;
     diagnostics_buffer& m_diagnostics;

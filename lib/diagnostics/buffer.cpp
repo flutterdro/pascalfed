@@ -13,6 +13,9 @@ auto diagnostics_buffer::push_back(compilation_error error)
     m_buffered_errors.push_back(std::move(error));
 }
 
+auto diagnostics_buffer::current_error_count()
+    -> std::size_t { return m_buffered_errors.size(); }
+
 auto diagnostics_buffer::flush()
     -> void {
     for(auto const& error : m_buffered_errors) {

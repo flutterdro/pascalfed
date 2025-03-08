@@ -1,216 +1,191 @@
 #include "fed/parser/context.hpp"
+#include "fed/parser/semantic-error.hpp"
 #include "fed/representations/parse-tree.hpp"
 #include "fed/representations/symbol-table.hpp"
 #include "fed/utils/superutil.hpp"
+#include <__expected/unexpected.h>
 #include <algorithm>
 #include <array>
+#include <functional>
+#include <memory>
 #include <optional>
+#include <span>
 #include <string_view>
 
 
 namespace fed {
 
-struct type_checker {
-    auto operator()(ast::type const& lhs, ast::type const& rhs)
-        -> check_result {
-        return std::visit(*this, lhs, rhs);
+auto semantic_context::get_expression_type(ast::observer_handle<ast::expression> exp)
+    -> ast::observer_handle<ast::type> {
+    return exp.and_then(
+        [this](ast::expression const& e) { return this->get_expression_type(e); }
+    );
+}
+auto semantic_context::get_expression_type(ast::expression const& exp)
+    -> ast::observer_handle<ast::type> {
+    return std::visit(overloaded{
+        [this](ast::expression_leaf const& e) { return this->get_expression_type(e); },
+        [](auto const& e) -> ast::observer_handle<ast::type> { return e.type; }
+    }, exp);
+}
+auto semantic_context::get_function_from_type(type_observer function) const
+    -> semantic_result<ast::observer_handle<ast::function_type>> {
+    return function
+        .and_then(LIFT_MEMBER(get_function_from_type));
+}
+auto semantic_context::get_function_from_type(ast::type const& function) const
+    -> semantic_result<ast::observer_handle<ast::function_type>> {
+    auto maybe_function_type = std::get_if<ast::function_type>(std::addressof(function));
+    if (maybe_function_type == nullptr) {
+        return std::unexpected(contextual_error());
+    } else {
+        return ast::observer_handle(maybe_function_type);
     }
-    // while type definition itself was/(should be) previously checked for poisoning
-    // it still could be an alias to the poisoned type 
-    // if it is the case act as if the check was success 
-    // the same rational as usual
-    auto operator()(ast::type_identifier const& lhs, ast::type_identifier const& rhs)
-        -> check_result {
-        if (std::ranges::any_of(std::array{lhs.id, rhs.id}, func::equal_to(sym::type::id::poison))) {
-            return check_result::success;
-        }
-        if (lhs.id == rhs.id) return check_result::success;
-        else return check_result::failure;
-    }
-    auto operator()(ast::type_identifier const& lhs, auto const& rhs)
-        -> check_result {
-        if (lhs.id == sym::type::id::poison) return check_result::success;
-        return (*this)(ctx.lookup(lhs.id)->types, rhs);
-    }
-    auto operator()(auto const& lhs, ast::type_identifier const& rhs)
-        -> check_result {
-        return (*this)(rhs, lhs);
-    }
-    auto operator()(ast::subrange_type const& lhs, ast::subrange_type const& rhs)
-        -> check_result {
-        if (*lhs.begin == *rhs.begin and *lhs.end == *rhs.end) {
-            return check_result::success;
-        } else {
-            return check_result::failure;
-        }
-    }
-    auto operator()(ast::array_type const& lhs, ast::array_type const& rhs)
-        -> check_result {
-        if (lhs.index_types.size() != rhs.index_types.size()) return check_result::failure;
-        for (auto i = 0uz; i < lhs.index_types.size(); ++i) {
-            if ((*this)(lhs.index_types[i], rhs.index_types[i]) == check_result::failure) {
-                return check_result::failure;
-            }
-        }
-        return (*this)(lhs.component_type, rhs.component_type);
-    }
-    template<typename T, typename F>
-    auto operator()(T const&, F const&) 
-        -> check_result { return check_result::failure; }
+}
 
-    semantic_context& ctx;
+auto semantic_context::call_type(
+    type_observer type, 
+    std::span<type_observer> caller_args
+) const -> semantic_result<type_observer> {
+    return get_function_from_type(type)
+        .and_then(std::bind_back(LIFT_MEMBER(call_type), caller_args));
+}
+auto semantic_context::call_type(
+    ast::observer_handle<ast::function_type> func,
+    std::span<type_observer> caller_args
+) const -> semantic_result<type_observer> {
+    return func
+        .and_then(std::bind_back(LIFT_MEMBER(call_type), caller_args));
+}
+auto semantic_context::call_type(
+    ast::function_type const& func, 
+    std::span<type_observer> caller_args
+) const -> semantic_result<type_observer> {
+    auto const& callee_args = func.argument_types;
+    if (callee_args.size() != caller_args.size()) {
+        // TODO: errors
+        return std::unexpected(contextual_error());
+    }
+    for (std::size_t i = 0; i < callee_args.size(); ++i) {
+        if (auto check_result = match_types(callee_args[i], caller_args[i])) {
+            continue;
+        } else {
+            return std::unexpected(check_result.error());
+        }
+    }
+    return func.return_type;
+}
+auto semantic_context::get_array_from_type(type_observer array) const
+    -> semantic_result<ast::observer_handle<ast::array_type>> {
+    return array
+        .and_then(LIFT_MEMBER(get_array_from_type));
+}
+auto semantic_context::get_array_from_type(ast::type const& array) const
+    -> semantic_result<ast::observer_handle<ast::array_type>> {
+    auto maybe_array_type = std::get_if<ast::array_type>(std::addressof(array));
+    if (maybe_array_type == nullptr) {
+        return std::unexpected(contextual_error());
+    } else {
+        return ast::observer_handle(maybe_array_type);
+    }
+}
+
+auto semantic_context::index_type(
+    type_observer type, 
+    std::span<type_observer> indexer_args
+) const -> semantic_result<type_observer> {
+    return get_array_from_type(type)
+        .and_then(std::bind_back(LIFT_MEMBER(index_type), indexer_args));
+}
+auto semantic_context::index_type(
+    ast::observer_handle<ast::array_type> arr,
+    std::span<type_observer> indexer_args
+) const -> semantic_result<type_observer> {
+    return arr
+        .and_then(std::bind_back(LIFT_MEMBER(index_type), indexer_args));
+}
+auto semantic_context::index_type(
+    ast::array_type const& arr, 
+    std::span<type_observer> indexer_args
+) const -> semantic_result<type_observer> {
+    auto const& indexee_args = arr.index_types;
+    if (indexee_args.size() != indexer_args.size()) {
+        // TODO: errors
+        return std::unexpected(contextual_error());
+    }
+    for (std::size_t i = 0; i < indexee_args.size(); ++i) {
+        if (auto check_result = match_types(indexee_args[i], indexer_args[i])) {
+            continue;
+        } else {
+            return std::unexpected(check_result.error());
+        }
+    }
+    return arr.component_type;
+}
+
+auto semantic_context::get_record_from_type(type_observer type) const
+    -> semantic_result<ast::observer_handle<ast::record_type>> {
+    return type.and_then(LIFT_MEMBER(get_record_from_type));
+}
+auto semantic_context::get_record_from_type(ast::type const& record) const
+    -> semantic_result<ast::observer_handle<ast::record_type>> {
+    auto maybe_record_type = std::get_if<ast::record_type>(&record);
+    if (maybe_record_type == nullptr) {
+        return std::unexpected(contextual_error());
+    } else {
+        return maybe_record_type;
+    }
+}
+
+auto semantic_context::member_type(
+    type_observer type,
+    ast::identifier_view name
+) const -> semantic_result<type_observer> {
+    return get_record_from_type(type).and_then(
+        [=, this](auto const& record) {
+            return this->member_type(record, name);
+        }
+    );
+}
+auto semantic_context::member_type(
+    ast::observer_handle<ast::record_type> record_obs,
+    ast::identifier_view name
+) const -> semantic_result<type_observer> {
+    return record_obs.and_then([=, this](auto const& record) {
+        return this->member_type(record, name);
+    });
+}
+auto semantic_context::member_type(
+    ast::record_type const& record, 
+    ast::identifier_view name
+) const -> semantic_result<type_observer> {
+    auto const& member_map = record.fixed_part.members;
+    auto const member_it = member_map.find(name);
+    if (member_it == member_map.end()) {
+        return std::unexpected(contextual_error());
+    } 
+    return member_it->second;
+}
+
+auto semantic_context::add_types(type_observer lhs, type_observer rhs) const
+    -> semantic_result<type_observer> {
+    return ast::then_all(
+        LIFT_MEMBER(add_types), 
+        lhs, rhs
+    );
+}
+
+struct type_adder {
+    auto operator()(auto const&, auto const&)
+        -> semantic_result<ast::observer_handle<ast::type>> {
+        return std::unexpected(contextual_error());
+    }
+    semantic_context const& ctx;
 };
 
-auto semantic_context::type_check(sym::type::info lhs, sym::type::info rhs)
-    -> check_result {
-    auto const& type_lhs = lhs->types;
-    auto const& type_rhs = rhs->types;
-
-    // if any of the type handles are poisoned
-    // always act as if type check was successful and move compiler forward
-    // otherwise there would be too many trivial and noisy error messages which
-    // would hide a true error
-    if (type_rhs.is_poisoned() or type_lhs.is_poisoned()) {
-        return check_result::success;
-    }
-
-    return type_checker{*this}(type_lhs, type_rhs);
+auto semantic_context::add_types(ast::type const& lhs, ast::type const& rhs) const
+    -> semantic_result<type_observer> {
+    return std::visit(type_adder{*this}, lhs, rhs);
 }
-
-auto semantic_context::insert(std::string_view name, sym::type::info info)
-    -> std::optional<contextual_error> {
-    auto& current_scope = m_current_scope.scope();
-    // check if type declaration is is poisoned 
-    // in case it is asign this type a poison id 
-    // in case it isn't go through the usual motions
-    // if provided type is an alias to existing type, just reuse the id 
-    // otherwise create a new id
-    auto type_id = info->types.is_poisoned() ? sym::type::id::poison :
-    std::visit(overloaded{
-        [](ast::type_identifier const& type) { return type.id; },
-        [&](auto const& type) { return m_symbol_table.types().insert(info); }
-    }, *info->types);
-    auto [iterator, success] = current_scope.insert(
-        name, 
-        {
-            .type = sym::name_type::type, 
-            .id = static_cast<unsigned>(type_id)
-        }
-    );
-
-    if (success) { 
-        return std::nullopt; 
-    } else {
-        return contextual_error();
-    }
-}
-
-auto semantic_context::insert(std::string_view name, sym::variable::info info)
-    -> std::optional<contextual_error> {
-    auto& current_scope = m_current_scope.scope();
-    auto variable_id = m_symbol_table.variables().insert(info);
-    auto [iterator, success] = current_scope.insert(
-        name, 
-        {
-            .type = sym::name_type::variable, 
-            .id = static_cast<unsigned>(variable_id)
-        }
-    );
-
-    if (success) { 
-        return std::nullopt; 
-    } else {
-        return contextual_error();
-    }
-}
-
-auto semantic_context::insert(std::string_view name, sym::function::info info)
-    -> std::optional<contextual_error> {
-    auto& current_scope = m_current_scope.scope();
-    auto function_id = m_symbol_table.functions().insert(info);
-    auto [iterator, success] = current_scope.insert(
-        name, 
-        {
-            .type = sym::name_type::function, 
-            .id = static_cast<unsigned>(function_id)
-        }
-    );
-
-    if (success) { 
-        return std::nullopt; 
-    } else {
-        return contextual_error();
-    }
-}
-
-auto semantic_context::insert(std::string_view name, sym::constant::info info)
-    -> std::optional<contextual_error> {
-    auto& current_scope = m_current_scope.scope();
-    auto constant_id = m_symbol_table.constants().insert(info);
-    auto [iterator, success] = current_scope.insert(
-        name, 
-        {
-            .type = sym::name_type::constant, 
-            .id = static_cast<unsigned>(constant_id)
-        }
-    );
-
-    if (success) { 
-        return std::nullopt; 
-    } else {
-        return contextual_error();
-    }
-}
-
-auto semantic_context::lookup_type(std::string_view name)
-    -> lookup_result<sym::type::id> {
-
-    for (auto walker = m_current_scope; 
-        walker != m_scoped_names.get_walker();
-        walker.backtrack_to_parent()) {
-        auto& scope = walker.scope();
-        if (auto it = scope.lookup(name);
-            it != scope.end()) {
-            auto [type, id] = it->second;
-            if (type != sym::name_type::type) {
-                return std::unexpected(contextual_error());
-            } else {
-                return static_cast<sym::type::id>(id);
-            }
-        }
-    }
-
-    return std::unexpected(contextual_error());
-}
-
-auto semantic_context::lookup_constant(std::string_view name) 
-    -> lookup_result<sym::constant::id> {
-    
-    for (auto walker = m_current_scope; 
-        walker != m_scoped_names.get_walker();
-        walker.backtrack_to_parent()) {
-        auto& scope = walker.scope();
-        if (auto it = scope.lookup(name);
-            it != scope.end()) {
-            auto [type, id] = it->second;
-            if (type != sym::name_type::constant) {
-                return std::unexpected(contextual_error());
-            } else {
-                return static_cast<sym::constant::id>(id);
-            }
-        }
-    }
-
-    return std::unexpected(contextual_error());
-}
-
-auto semantic_context::lookup(sym::type::id id) const
-    -> sym::type::info { return m_symbol_table.types().lookup(id); }
-auto semantic_context::lookup(sym::constant::id id) const
-    -> sym::constant::info { return m_symbol_table.constants().lookup(id); }
-auto semantic_context::initialize_scope() 
-    -> void {}
-auto semantic_context::finalize_scope()
-    -> void {}
 
 } // namespace fed

@@ -15,12 +15,14 @@ public:
         -> void;
     auto push_back(compilation_error) -> void;
     auto flush() -> void;
+    auto current_error_count()
+        -> std::size_t;
 
     [[noreturn]] auto too_many_errors_handler() noexcept
         -> void;
 
     unsigned m_error_count{};
-    unsigned m_max_error_count{};
+    unsigned m_max_error_count{5};
     std::vector<compilation_error> m_buffered_errors{};
 };
 

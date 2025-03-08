@@ -6,28 +6,38 @@
 #include "fed/representations/symbol-table.hpp"
 #include "fed/utils/superutil.hpp"
 
+#include <cstddef>
 #include <fmt/base.h>
+#include <fmt/chrono.h>
 #include <fmt/format.h>
 
+#include <functional>
 #include <memory>
 #include <string_view>
+#include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <optional>
 #include <vector>
 
-
+namespace fed {
+struct poison_t{};
+inline constexpr poison_t poison_pill;
+}
 namespace fed::ast {
 
 template<typename T>
 class handle {
+    template<typename>
+    friend struct observer_handle;
 public:
     handle() 
         : m_handle(nullptr) {}
     handle(T&& val)
         : m_handle(std::make_unique<T>(std::move(val))) {}
     handle(handle const&) = delete;
-    handle(handle&&) = default;
+    handle(handle&&) noexcept = default;
     template<typename U>
     handle(handle<U>&& derived)
         : m_handle(std::move(derived)) {}
@@ -37,8 +47,8 @@ public:
 
         return *this;
     }
-    template<typename U>
-    friend class handle;
+    constexpr handle(poison_t) noexcept
+        :m_handle(nullptr) {}
     auto operator=(handle const&) = delete;
     auto operator=(handle&&) -> handle& = default;
     template<typename U>
@@ -52,151 +62,115 @@ public:
     auto operator*()
         -> T& { 
         if (is_poisoned()) throw internal_error("accessing a poisoined handle");
-        if (m_handle == nullptr) throw internal_error("accessing empty handle");
         return *m_handle;
     }
     auto operator*() const 
         -> T const& { 
         if (is_poisoned()) throw internal_error("accessing a poisoined handle");
-        if (m_handle == nullptr) throw internal_error("accessing empty handle");
         return *m_handle;
     }
     auto operator->() 
         -> T* { 
         if (is_poisoned()) throw internal_error("accessing a poisoined handle");
-        if (m_handle == nullptr) throw internal_error("accessing empty handle");
         return m_handle.get(); 
     }
     auto operator->() const
         -> T const* { 
         if (is_poisoned()) throw internal_error("accessing a poisoined handle");
-        if (m_handle == nullptr) throw internal_error("accessing empty handle");
         return m_handle.get(); 
     }
     
     auto get()
-        -> T* { return m_handle.get(); }
+        -> T* { 
+        if (is_poisoned()) throw internal_error("accessing a poisoined handle");
+        return m_handle.get(); 
+    }
     auto get() const
-        -> T const* { return m_handle.get(); }
+        -> T const* { 
+        if (is_poisoned()) throw internal_error("accessing a poisoined handle");
+        return m_handle.get(); 
+    }
 
     auto poison()
-        -> void { m_is_poisoned = true; }
+        -> void { m_handle = nullptr; }
     auto is_poisoned() const
-        -> bool { return m_is_poisoned; }
+        -> bool { return m_handle == nullptr; }
 private:
     std::unique_ptr<T> m_handle{};
-    bool m_is_poisoned{};
 
 };
-
-template<typename... Ts>
-class variant_handle {
+// non - owning, immutable handle
+template<typename T>
+class observer_handle {
+    friend handle<T>;
 public:
-    template<typename T>
-    friend class handle;
-    constexpr variant_handle() = default;
-    constexpr variant_handle(variant_handle&&) noexcept = default;
-    constexpr auto operator=(variant_handle&&) noexcept
-        -> variant_handle& = default;
-    template<typename T>
-    constexpr variant_handle(handle<T> val) noexcept
-        : m_variant(std::move(val)) {}
-    template<typename T>
-    constexpr auto operator=(handle<T> val) noexcept
-        -> variant_handle& { 
-        m_variant = std::move(val);
-        return *this;
+    observer_handle() = delete;
+    constexpr observer_handle(poison_t) noexcept 
+        : m_handle(nullptr) {}
+    
+    observer_handle(T const* ptr)
+        : m_handle(ptr) {
+        if (ptr == nullptr) throw internal_error("observer_handle cannot be constructed from nullptr");
+    }
+    observer_handle(nullptr_t) = delete;
+    observer_handle(handle<T> const& handle)
+        : m_handle(handle.m_handle.get()) {}
+    observer_handle(observer_handle const&) = default;
+    auto is_poisoned() const noexcept
+        -> bool { return m_handle == nullptr; }
+    auto and_then(auto&& f) const noexcept {
+        if (is_poisoned()) 
+            return std::remove_cvref_t<std::invoke_result_t<decltype(f), T const&>>(poison_pill);
+        return std::invoke(FWD(f), *this->m_handle);
     }
 
-    template<typename T>
-    friend constexpr auto holds_alternative(variant_handle const& variant) noexcept
-        -> bool { return std::holds_alternative<handle<T>>(variant.m_variant); }
-    template<typename T>
-    friend constexpr auto get(auto&& variant) noexcept 
-        -> decltype(auto) { return std::get<T>(FWD(variant)); }
-    friend constexpr auto visit(auto&& visitor, auto&&... variants)
-        -> decltype(auto) { 
-        return std::visit(
-            func::psie_combinator(
-                FWD(visitor), 
-                func::deep_dereference
-            ), FWD(variants).m_variant...
-        ); 
-    }
+    auto unsafe_get() const noexcept { return m_handle; }
 
-    constexpr auto is_poisoned() const noexcept
-        -> bool { 
-        return std::visit(
-            [](auto const& val) { return val.is_poisoned(); },
-            m_variant
-        );
-    }
 private:
-    std::variant<handle<Ts>...> m_variant;
+    T const* m_handle;
 };
-template<typename... Ts>
-class handle<variant_handle<Ts...>> {
-public:
-    using value_type = variant_handle<Ts...>;
-    handle() = default;
-    handle(value_type&& val)
-        : m_handle(std::move(val)) {}
-    handle(handle const&) = delete;
-    handle(handle&&) noexcept = default;
-    template<typename U>
-    handle(handle<U>&& derived)
-        : m_handle(std::move(derived)) {}
-    auto operator=(value_type&& val)
-        -> handle& {
-        m_handle = std::move(val);
 
-        return *this;
-    }
-    template<typename U>
-    friend class handle;
-    auto operator=(handle const&) = delete;
-    auto operator=(handle&&) noexcept -> handle& = default;
-    template<typename U>
-    auto operator=(handle<U>&& derived)
-        -> handle& {
-        *this = std::move(derived);
+template<typename F, typename... Ts>
+auto then_all(F&& func, observer_handle<Ts>... handles)
+    -> std::invoke_result_t<F, Ts const&...> {
+    if ((handles.is_poisoned() or ...)) 
+        return std::invoke_result_t<F, Ts const&...>(poison_pill);
+    return std::invoke(FWD(func), *handles.unsafe_get()...);
+}
 
-        return *this;
-    }
 
-    auto operator*()
-        -> value_type& {
-        if (is_poisoned()) throw internal_error("accessing a poisoined handle");
-        return m_handle;
-    }
-    auto operator*() const 
-        -> value_type const& { 
-        if (is_poisoned()) throw internal_error("accessing a poisoined handle");
-        return m_handle;
-    }
-    auto is_poisoned() const
-        -> bool { return m_handle.is_poisoned(); }
-private:
-    variant_handle<Ts...> m_handle{};
-    bool m_is_poisoned{};
+using identifier = std::string;
+using identifier_view = std::string_view;
 
-};
+
 template<typename T>
 using group = std::vector<T>;
+template<typename... Ts>
+using variant = std::variant<Ts...>;
+template<typename T>
+using maybe = std::optional<T>;
 
-using identifier_group = std::vector<std::string_view>;
+namespace detail {
+struct string_hash
+{
+    using hash_type = std::hash<std::string_view>;
+    using is_transparent = void;
+ 
+    std::size_t operator()(const char* str) const        { return hash_type{}(str); }
+    std::size_t operator()(std::string_view str) const   { return hash_type{}(str); }
+    std::size_t operator()(std::string const& str) const { return hash_type{}(str); }
+};
+} // namespace detail 
+template<typename T>
+using name_map = std::unordered_map<std::string, T, detail::string_hash, std::equal_to<>>;
+
 
 struct enumerated_type;
 
-struct identifier {
-    source::view view;
-};
+struct type_declaration;
+using type_id = symbol_mapback<type_declaration>::id;
 struct type_identifier {
-    sym::type::id id;
-    handle<identifier> identifier;
-};
-struct variable_identifier {
-    sym::variable::id id;
+    type_id id;
     handle<identifier> identifier;
 };
 
@@ -215,11 +189,12 @@ struct label_declaration {
 // TODO: handle constant id 
 using constant = std::variant<int, double, char, std::string_view>;
 
-struct constant_definition {
+struct constant_declaration {
     source::view region;
     handle<identifier> identifiers;
     handle<constant> constants;
 };
+using constant_declaration_handle = handle<constant_declaration>;
 
 struct simple_type {};
 struct structured_type {};
@@ -232,6 +207,8 @@ struct array_type;
 struct record_type;
 struct set_type;
 struct file_type;
+struct function_type;
+struct procedure_type;
 
 using type = std::variant<
     enumerated_type,
@@ -240,13 +217,12 @@ using type = std::variant<
     array_type,
     record_type,
     set_type,
-    file_type
+    file_type,
+    function_type,
+    procedure_type
 >;
 
-
-
-
-
+struct enum_member {};
 struct enumerated_type {
     source::view region;
     group<handle<identifier>> identifiers;
@@ -270,43 +246,52 @@ struct file_type {
     handle<type> component_type;
 };
 
-
-struct fixed_field {
-    group<handle<identifier>> names;
-    handle<type> type;
+struct function_type {
+    handle<type> return_type;
+    group<handle<type>> argument_types;
 };
-struct variant {
+
+struct procedure_type {
+    group<handle<type>> argument_types;
+};
+
+struct fixed_fields {
+    group<handle<type>>             member_types;
+    name_map<observer_handle<type>> members;
+};
+struct variant_part {
     group<handle<constant>> matches;
     handle<record_type> fields;
 };
 struct variant_field {
     handle<identifier> name;
     handle<type> tag;
-    group<handle<variant>> variants;
+    group<handle<variant_part>> variants;
 };
 
 struct record_type {
-    group<handle<fixed_field>> fixed_fields; 
+    fixed_fields fixed_part; 
     std::optional<handle<variant_field>> variant_part;
 };
 
-struct type_definition {
+struct type_declaration {
     source::view region;
     handle<identifier> name;
     handle<type> types;
 };
-
+using type_declaration_handle = handle<type_declaration>;
 struct variable_declaration {
     source::view region;
     group<handle<identifier>> identifiers;
     handle<type> type;
 };
+using variable_declaration_handle = handle<variable_declaration>;
 
 struct block {
     source::view region;
     std::optional<label_declaration> label_declaration_part;
-    std::optional<group<constant_definition>> constant_deginitions;
-    std::optional<group<type_definition>> type_definitions;
+    std::optional<group<constant_declaration>> constant_deginitions;
+    std::optional<group<type_declaration>> type_definitions;
     std::optional<group<variable_declaration>> variable_declarations;
 
 };
@@ -323,6 +308,8 @@ struct procedure_heading;
 using formal_parameter = 
     std::variant<formal_parameter_simple, function_heading, procedure_heading>;
 
+
+
 struct function_heading {
     handle<identifier> name;
     std::optional<group<handle<formal_parameter>>> formal_parametr_list;
@@ -331,8 +318,9 @@ struct function_heading {
 
 struct function_declaration {
     handle<function_heading> head;
-    std::optional<handle<block>> body;
+    handle<block> body;
 };
+using function_declaration_handle = handle<function_declaration>;
 
 struct procedure_heading {
     handle<identifier> name;
@@ -361,11 +349,38 @@ struct program {
 /// EXPRESSION AST
 //
 
+struct function_name;
+struct variable_name;
+struct constant_name;
+struct enum_name;
+struct string_literal;
+struct number_literal;
+
+using bare_name = variant<
+    function_name,
+    variable_name,
+    constant_name,
+    string_literal,
+    number_literal,
+    enum_name
+>;
+
+struct indexed_variable;
+struct dereferenced_variable;
+struct called_variable;
+struct membered_variable;
+
+using expression_leaf = variant<
+    bare_name,
+    indexed_variable,
+    dereferenced_variable,
+    called_variable,
+    membered_variable
+>;
 struct binary_expression;
 struct unary_expression;
-struct expression_leaf;
 
-using expression = variant_handle<binary_expression, unary_expression, expression_leaf>;
+using expression = variant<binary_expression, unary_expression, expression_leaf>;
 
 enum class binary_operation {
     add,
@@ -395,86 +410,82 @@ enum class unary_operation {
 };
 
 struct binary_expression {
+    observer_handle<type> type;
     handle<expression> lhs;
     handle<expression> rhs;
     binary_operation operation;
 };
 
-struct expression_leaf {
-    char character;
-};
-
 struct unary_expression {
+    observer_handle<type> type;
     handle<expression> operand;
     unary_operation operation;
 };
 
 
+using function_id = symbol_mapback<ast::observer_handle<function_declaration>>::id;
+using variable_id = symbol_mapback<ast::observer_handle<variable_declaration>>::id;
+using constant_id = symbol_mapback<ast::observer_handle<constant_declaration>>::id;
+using enum_id = symbol_mapback<ast::observer_handle<enumerated_type>>::id;
+template<typename IdT>
+struct name_from_id;
+template<>
+struct name_from_id<function_id> { using type = function_name; };
+template<>
+struct name_from_id<variable_id> { using type = variable_name; };
+template<>
+struct name_from_id<constant_id> { using type = constant_name; };
+template<>
+struct name_from_id<enum_id> { using type = enum_name; };
+template<typename IdT>
+using name_from_id_t = name_from_id<IdT>::type;
+struct function_name {
+    observer_handle<type> type;
+    function_id id;
+};
+struct variable_name {
+    observer_handle<type> type;
+    variable_id id;
+};
+struct constant_name {
+    observer_handle<type> type;
+    constant_id id;
+};
+struct enum_name {
+    observer_handle<type> type;
+    enum_id id;
+};
+struct number_literal {
+    observer_handle<type> type;
+    unsigned num;
+};
+struct string_literal {
+    observer_handle<type> type;
+    source::view string;
+};
 
-
+struct indexed_variable {
+    observer_handle<type> type;
+    handle<expression> array;
+    group<handle<expression>> indecies;
+};
+struct called_variable {
+    observer_handle<type> type;
+    handle<expression> callable;
+    group<handle<expression>> arguments;
+};
+struct dereferenced_variable {
+    observer_handle<type> type;
+    handle<expression> ptr;
+};
+struct membered_variable {
+    observer_handle<type> type;
+    handle<expression>    object;
+    identifier            member;
+};
 
 
 
 } // namespace fed
-
-template<>
-struct fmt::formatter<fed::ast::binary_operation> {
-    constexpr auto parse(fmt::format_parse_context& ctx) 
-        -> fmt::format_parse_context::iterator { return ctx.begin(); }
-    constexpr auto format(fed::ast::binary_operation const& op, fmt::format_context& ctx) const 
-        -> fmt::format_context::iterator {
-        switch (op) {
-
-        case fed::ast::binary_operation::add: *ctx.out()++ = '+';break;
-        case fed::ast::binary_operation::substract:*ctx.out()++ = '-';break;
-        case fed::ast::binary_operation::or_:*ctx.out()++ = 'o';break;
-        case fed::ast::binary_operation::multiply:*ctx.out()++ = '*';break;
-        case fed::ast::binary_operation::integer_divide:*ctx.out()++ = '/';break;
-        case fed::ast::binary_operation::real_divide:*ctx.out()++ = '/';break;
-        case fed::ast::binary_operation::modulo:*ctx.out()++ = '%';break;
-        case fed::ast::binary_operation::and_:*ctx.out()++ = 'a';break;
-        case fed::ast::binary_operation::equal:*ctx.out()++ = '=';break;
-        case fed::ast::binary_operation::not_equal:*ctx.out()++ = '=';break;
-        case fed::ast::binary_operation::greater:*ctx.out()++ = '>';break;
-        case fed::ast::binary_operation::less:*ctx.out()++ = '<';break;
-        case fed::ast::binary_operation::greater_or_equal:*ctx.out()++ = '>';break;
-        case fed::ast::binary_operation::less_or_equal:*ctx.out()++ = '<';break;
-        case fed::ast::binary_operation::in:*ctx.out()++ = 'i';break;
-          break;
-        }
-        return ctx.out();
-    }
-};
-template<>
-struct fmt::formatter<fed::ast::expression> {
-    int depth = 0;
-    constexpr formatter() = default;
-    constexpr formatter(int depth_) 
-        : depth(depth_) {}
-    constexpr auto parse(fmt::format_parse_context& ctx) 
-        -> fmt::format_parse_context::iterator { return ctx.begin(); }
-    constexpr auto format(fed::ast::expression const& expr, fmt::format_context& ctx) const 
-        -> fmt::format_context::iterator {
-        int a = 0;
-        ctx.out() = fmt::format_to(ctx.out(), "{0:>{1}}", "", 2*depth);
-        visit(
-        fed::overloaded{
-            [&ctx, this](fed::ast::binary_expression const& exp) {
-                    ctx.out() = fmt::format_to(ctx.out(), "|binary expression {}\n", exp.operation);
-                    ctx.out() = fmt::formatter<fed::ast::expression>(this->depth + 1).format(*exp.lhs, ctx);
-                    ctx.out() = fmt::formatter<fed::ast::expression>(this->depth + 1).format(*exp.rhs, ctx);
-                },
-            [&ctx, this](fed::ast::unary_expression const& exp) {
-                    ctx.out() = fmt::format_to(ctx.out(), "|unary expression\n");
-                    ctx.out() = fmt::formatter<fed::ast::expression>(this->depth + 1).format(*exp.operand, ctx);
-                },
-            [&ctx, this](fed::ast::expression_leaf const& exp) {
-                    ctx.out() = fmt::format_to(ctx.out(), "|leaf letter {}\n", exp.character);
-                }
-        }, expr);
-        return ctx.out();
-    }
-};
-
 
 #endif

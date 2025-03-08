@@ -37,7 +37,6 @@ public:
         -> source::location { return {}; }
     code m_code;
     source::view m_identifier;
-    sym::name_type m_other_name;
 
 };
 

@@ -1,6 +1,7 @@
 #include "fed/scanner/lex.hpp"
-#include "fed/representations/parse-tree.hpp"
+#include "fed/diagnostics/buffer.hpp"
 #include "fed/representations/raw-source.hpp"
+#include "fed/scanner/lexer_error.hpp"
 #include "fed/scanner/token.hpp"
 #include "fed/utils/superutil.hpp"
 #include "fed/diagnostics/internal-error.hpp"
@@ -16,8 +17,9 @@ using namespace std::literals;
 namespace stdr = std::ranges;
 
 
-lexer::lexer(source::full_view view) 
-    :
+lexer::lexer(diagnostics_buffer& buffer, source::full_view view) 
+    :   
+        m_buffer(buffer),
         m_source(view), 
         m_cursor(m_source.begin()),
         m_cached_token(),
@@ -109,8 +111,27 @@ auto lexer::lex_as_literal() noexcept
     -> token_view {
     auto result = token_view();
     auto const start = m_cursor++;
+    auto end         = start;
     
-    while (m_cursor != m_source.end() and *m_cursor++ != '\'') {}
+    while (true) {
+        if (m_cursor == m_source.end()) {
+            m_buffer.push_back(lexer_error());
+            break;
+        }
+        auto current_char = *m_cursor;
+
+        if (current_char == '\n') {
+            m_buffer.push_back(lexer_error());
+            ++m_cursor;
+            break;
+        }
+
+        if (current_char == '\'') {
+            ++m_cursor;
+            break;
+        }
+        end = ++m_cursor;
+    }
 
     result = token_view(
         m_source.subview(start, m_cursor),
@@ -125,28 +146,71 @@ auto lexer::lex_as_number() noexcept
     auto result = token_view();
     auto result_token_type = token_type::number_integer;
     auto const start = m_cursor;
+    auto end         = start;
+    auto is_lexing_exponent = false;
+    auto is_lexing_fraction = false;
+    auto is_sign_allowed    = false;
+    auto continue_loop      = true;
 
     auto is_digit = [](char character) { return std::isdigit(character); };
 
-    while (++m_cursor != m_source.end() and std::isdigit(*m_cursor)) {}
-
-    if (m_cursor != m_source.end()) {
-        if (*m_cursor == '.') {
-            result_token_type = token_type::number_real;
-            while (++m_cursor != m_source.end() and std::isdigit(*m_cursor)) {}
+    while (continue_loop) {
+        ++m_cursor;
+        if (m_cursor == m_source.end()) {
+            end = m_cursor;
+            break;
         }
-        if (current_char_is('e')) {
-            ++m_cursor;
-            result_token_type = token_type::number_real;
-            if (current_char_is('+') or current_char_is('-')) {
-                ++m_cursor;
+        auto const current_char = *m_cursor;
+        switch (current_char) {
+            case '0':case '1':case '2':
+            case '3':case '4':case '5':
+            case '6':case '7':case '8':
+            case '9': {
+                is_sign_allowed = false;
+                end = m_cursor; 
+                break;
             }
-            while (current_char_is(is_digit)) { ++m_cursor; }
+            case '.': {
+                if (is_lexing_exponent or is_lexing_fraction) {
+                    // errors
+                } else {
+                    result_token_type = token_type::number_real;
+                    is_lexing_fraction = true;
+                    end = m_cursor;
+                }
+                break;
+            }
+            case '+':case '-': {
+                if (is_sign_allowed) {
+                    end = m_cursor;
+                    continue;
+                } else  {
+                    continue_loop = false;
+                }
+                is_sign_allowed = false;
+                break;
+            }
+            case 'e':case 'E': {
+                if (is_lexing_exponent) {
+                    // errors
+                } else {
+                    result_token_type = token_type::number_real;
+                    is_lexing_fraction = false; 
+                    is_lexing_exponent = true;
+                    is_sign_allowed    = true;
+                    end = m_cursor;
+                }
+                break;
+            }
+            default: continue_loop = false;
         }
-
+       
     }
 
-    return result;
+    return {
+        .m_view = source::view(start, end),
+        .m_type = result_token_type,
+    };
 }
 
 auto lexer::lex_next_token() noexcept 

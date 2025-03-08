@@ -7,6 +7,8 @@
 
 #define FWD(expr) std::forward<decltype(expr)>(expr)
 #define LIFT(func) [](auto&&... xs) { return func(FWD(xs)...); }
+#define LIFT_MEMBER(func) [this](auto&&... xs) { return this->func(FWD(xs)...); }
+
 
 namespace fed {
 
@@ -85,6 +87,26 @@ constexpr auto any_of(R&& collection) noexcept {
 constexpr auto no(auto&& func) {
     return [func_ = std::forward<decltype(func)>(func)](auto&&... args) -> bool {
         return not func_(std::forward<decltype(args)>(args)...);
+    };
+}
+struct static_any {
+    template<typename T>
+    constexpr operator T() {}
+};
+constexpr auto operator or(auto&& lhs, auto&& rhs) {
+    return [_lhs = FWD(lhs), _rhs = FWD(rhs)](auto&& val) {
+        return _lhs(val) or _rhs(val);
+    };
+}
+constexpr auto operator and(auto&& lhs, auto&& rhs) {
+    return [_lhs = FWD(lhs), _rhs = FWD(rhs)](auto&& val) {
+        return _lhs(val) and _rhs(val);
+    };
+}
+
+constexpr auto operator not(auto&& rhs) {
+    return [_rhs = FWD(rhs)](auto&& val) {
+        return not _rhs(val);
     };
 }
 

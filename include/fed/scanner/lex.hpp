@@ -1,6 +1,7 @@
 #ifndef FED_LEX_HPP_
 #define FED_LEX_HPP_
 
+#include "fed/diagnostics/buffer.hpp"
 #include "token.hpp"
 #include "fed/representations/raw-source.hpp"
 
@@ -10,14 +11,10 @@ namespace fed {
 
 struct lexer {
 
-    lexer(source::full_view view);
+    lexer(diagnostics_buffer&, source::full_view);
 
     lexer(lexer const&) = default;
     lexer(lexer&&) noexcept = default;
-    auto operator=(lexer const&)
-        -> lexer& = default;
-    auto operator=(lexer&&)
-        -> lexer& = default;
 
     auto cursor() const noexcept
         -> source::iterator;
@@ -40,6 +37,7 @@ struct lexer {
     auto lex_as_number() noexcept
         -> token_view;
     
+    diagnostics_buffer& m_buffer;
     source::full_view m_source;
     source::iterator m_cursor;
     token_view m_cached_token;

@@ -1,10 +1,13 @@
+#include "fed/parser/context.hpp"
 #include "fed/parser/parser.hpp"
 #include "fed/representations/parse-tree.hpp"
 #include "fed/scanner/token.hpp"
 #include "fed/utils/superutil.hpp"
+#include <__expected/unexpected.h>
 #include <fmt/base.h>
 #include <fmt/ostream.h>
 #include <utility>
+#include <variant>
 
 #define TRY(dest, exp) \
 do {auto exp2 = exp;\
@@ -19,53 +22,48 @@ namespace fed {
 using ast::handle;
 int g_counter = 0;
 auto parser::parse_expression()
-    -> parse_result<handle<ast::expression>> {
-    fmt::println("Called parse_expression()");
-    fmt::println("{}: Current cursor on: {}",g_counter++, current_token().view().base());
+    -> parse_result<ast::expression> {
     if (current_token().type() == token_type::l_paren) {
         consume_and_advance();
         auto lhs = *parse_expression();
         TRY_OPT(consume_and_advance_expecting(token_type::r_paren));
         return parse_expression(std::move(lhs), precedence::lowest);
     }
-    fmt::println("{}: Current cursor on: {}",g_counter++, current_token().view().base());
     if (func::any_of(std::array{
         token_type::plus,
         token_type::minus,
         token_type::keyword_not,
-    })(current_token().type())) { return parse_unary_expression(); }
-    fmt::println("{}: Current cursor on: {}",g_counter++, current_token().view().base());
+    })(current_token().type())) { return *parse_unary_expression(); }
 
     auto lhs = *parse_expression_leaf();
 
-    fmt::println("{}: Current cursor on: {}",g_counter++, current_token().view().base());
     return parse_expression(std::move(lhs), precedence::lowest);
 
 }
 
 auto parser::parse_unary_expression()
-    -> parse_result<handle<ast::unary_expression>> {
-    auto result = handle<ast::unary_expression>();
-    auto token = consume_and_advance().type();
-
-    auto token_to_operation = [](token_type type) -> ast::unary_operation {
-        switch (type) {
-            case token_type::plus:        return ast::unary_operation::identity;  
-            case token_type::minus:       return ast::unary_operation::negation;
-            case token_type::keyword_not: return ast::unary_operation::logical_negation;
-            default: std::unreachable();
-        }
-    };
-
-    result->operation = token_to_operation(token);
-
-    if (current_token().type() == token_type::l_paren) {
-        TRY(result->operand, parse_expression());
-    } else {
-        TRY(result->operand, parse_expression_leaf());
-    }
-   
-    return result;
+    -> parse_result<ast::unary_expression> {
+   //  auto result = ast::unary_expression();
+   //  auto token = consume_and_advance().type();
+   //
+   //  auto token_to_operation = [](token_type type) -> ast::unary_operation {
+   //      switch (type) {
+   //          case token_type::plus:        return ast::unary_operation::identity;  
+   //          case token_type::minus:       return ast::unary_operation::negation;
+   //          case token_type::keyword_not: return ast::unary_operation::logical_negation;
+   //          default: std::unreachable();
+   //      }
+   //  };
+   //
+   //  result.operation = token_to_operation(token);
+   //
+   //  if (current_token().type() == token_type::l_paren) {
+   //      TRY(result.operand, parse_expression());
+   //  } else {
+   //      TRY(result.operand, parse_expression_leaf());
+   //  }
+   // 
+   //  return result;
 }
 inline constexpr auto is_binary_operator = [](token_type type) {
     return func::any_of(std::array{
@@ -109,32 +107,27 @@ inline constexpr auto binary_operator_precedence = [](token_type type) {
         }
     };
 
-auto parser::parse_expression(handle<ast::expression> lhs, precedence::level threshold)
-    -> parse_result<handle<ast::expression>> {
-    fmt::println("Called parse_expression(_, {})", +threshold);
+auto parser::parse_expression(ast::expression lhs, precedence::level threshold)
+    -> parse_result<ast::expression> {
     
     auto token = current_token().type();
-    fmt::println("{}: Current cursor on: {}",g_counter++, current_token().view().base());
 
     if (not is_binary_operator(token)) return lhs;
-    fmt::println("{}: Current cursor on: {}",g_counter++, current_token().view().base());
 
     if (auto new_threshold = binary_operator_precedence(token);
         new_threshold > threshold) {
         lhs = *parse_expression(std::move(lhs), new_threshold);
     }
     if (not is_binary_operator(current_token().type())) return lhs;
-    fmt::println("{}: Current cursor on: {}",g_counter++, current_token().view().base());
     
     
     return parse_rhs(std::move(lhs), threshold);
 }
 
 
-auto parser::parse_rhs(handle<ast::expression> lhs, precedence::level threshold) 
-    -> parse_result<handle<ast::binary_expression>> {
+auto parser::parse_rhs(ast::expression lhs, precedence::level threshold) 
+    -> parse_result<ast::binary_expression> {
     fmt::println("Called parse_rhs(_, {})", +threshold);
-    auto result = handle<ast::binary_expression>();
     auto token_to_operation = [](token_type type) {
         switch (type) {
             using enum token_type;
@@ -160,9 +153,8 @@ auto parser::parse_rhs(handle<ast::expression> lhs, precedence::level threshold)
     if (not is_binary_operator(current_token().type())) { 
             fmt::println("mark 8");
         return std::unexpected(parse_error());}
-    fmt::println("{}: Current cursor on: {}",g_counter++, current_token().view().base());
     auto operation_token = consume_and_advance().type();
-    auto rhs = [&] -> handle<ast::expression> {
+    auto rhs = [&] -> ast::expression {
         if (current_token().type() == token_type::l_paren) {
             return *parse_expression();
         } else {
@@ -174,24 +166,242 @@ auto parser::parse_rhs(handle<ast::expression> lhs, precedence::level threshold)
             return rhs;
         }
     }();
-    fmt::println("{}: Current cursor on: {}",g_counter++, current_token().view().base());
-    result = ast::binary_expression{
+    return ast::binary_expression{
+        .type      = poison_pill,
         .lhs       = std::move(lhs),
         .rhs       = std::move(rhs),
         .operation = token_to_operation(operation_token),
     };
-
-    return result;
 }
 
 auto parser::parse_expression_leaf() 
-    -> parse_result<handle<ast::expression_leaf>> {
-    fmt::println("Called parse_leaf()");
-    auto characto = consume_and_advance().view().base();
-    fmt::println("{}", characto);
-    return handle{ast::expression_leaf{.character = characto[0]}};
+    -> parse_result<ast::expression_leaf> {
+    auto const lookahead = current_token();
+    switch (lookahead.type()) {
+        case token_type::identifier: {
+            return parse_expression_leaf(
+                determine_name_type(consume_and_advance().view().base())
+            );
+        }
+        //TODO:
+        //case number_real 
+        //case number_integer
+        //case string literal 
+        //case character literal 
+        default: {
+            return std::unexpected(parse_error());
+        }
+    }
 }
 
+auto parser::parse_expression_leaf(ast::expression_leaf base)
+    -> parse_result<ast::expression_leaf> {
+    auto const lookahead = current_token();
+    switch (lookahead.type()) {
+        case token_type::caret: {
+            consume_and_advance();
+            return parse_dereferencing(std::move(base));
+        }
+        case token_type::l_paren: {
+            consume_and_advance();
+            return parse_call(std::move(base));
+        }
+        case token_type::l_square: {
+            consume_and_advance();
+            return parse_indexing(std::move(base));
+        }
+        case token_type::dot: {
+            consume_and_advance();
+            return parse_member_access(std::move(base));
+        }
+        default: {
+            return base;
+        }
+    }
+}
+
+auto parser::parse_dereferencing(ast::expression_leaf base)
+    -> parse_result<ast::expression_leaf> {
+    auto base_handle     = handle<ast::expression>(std::move(base));
+    auto expression_type = [&] () -> ast::observer_handle<ast::type> {
+        auto pointer_type = context().get_expression_type(base_handle);
+        if (auto type_exp = context().dereference_type(pointer_type)) {
+            return *type_exp;
+        } else {
+            diagnostics().push_back(type_exp.error());
+            return poison_pill;
+        }
+    }();
+    return parser::parse_expression_leaf(
+        ast::dereferenced_variable{
+            .type = expression_type,
+            .ptr  = std::move(base_handle),
+        }
+    );
+}
+
+auto parser::parse_call(ast::expression_leaf base)
+    -> parse_result<ast::expression_leaf> {
+    using enum token_type;
+    auto base_handle       = ast::handle<ast::expression>(std::move(base));
+    auto caller_args_types = ast::group<ast::observer_handle<ast::type>>();
+    auto caller_args       = ast::group<ast::handle<ast::expression>>();
+    while(true) {
+        if (auto arg_exp = parse_expression()) {
+            caller_args_types.push_back(
+                context().get_expression_type(*arg_exp)
+            );
+            caller_args.push_back(std::move(*arg_exp));
+        } else {
+            diagnostics().push_back(arg_exp.error());
+            caller_args_types.push_back(poison_pill);
+            caller_args.push_back(poison_pill);
+        }
+        if (current_token_is(not func::any_of(std::array{comma, r_paren, semicolon}))) {
+            // TODO: error recovery
+        }
+        if (current_token().type() == token_type::comma) {
+            consume_and_advance();
+            continue;
+        } else if (current_token().type() == token_type::r_paren) {
+            consume_and_advance();
+            break;
+        } else if (current_token().type() == token_type::semicolon) {
+            // TODO: error missing ')'
+            return std::unexpected(parse_error());
+        } else {
+            
+        }
+    }
+
+    auto return_type = context()
+        .call_type(
+            context().get_expression_type(base_handle),
+            caller_args_types
+        )
+        .transform_error([&](auto&& err) {
+            this->diagnostics().push_back(err);
+            return err;
+        })
+        .value_or(poison_pill);
+    
+    return ast::called_variable{
+        .type      = return_type,
+        .callable  = std::move(base_handle),
+        .arguments = std::move(caller_args),
+    };
+}
+
+auto parser::parse_indexing(ast::expression_leaf base) 
+    -> parse_result<ast::expression_leaf> {
+    using enum token_type;
+    auto base_handle      = ast::handle<ast::expression>(std::move(base));
+    auto index_args_types = ast::group<ast::observer_handle<ast::type>>();
+    auto index_args       = ast::group<ast::handle<ast::expression>>();
+    while(true) {
+        if (auto arg_exp = parse_expression()) {
+            index_args_types.push_back(
+                context().get_expression_type(*arg_exp)
+            );
+            index_args.push_back(std::move(*arg_exp));
+        } else {
+            diagnostics().push_back(arg_exp.error());
+            index_args_types.push_back(poison_pill);
+            index_args.push_back(poison_pill);
+        }
+        if (current_token_is(not func::any_of(std::array{comma, r_square, semicolon}))) {
+            // TODO: error recovery
+        }
+        if (current_token().type() == token_type::comma) {
+            consume_and_advance();
+            continue;
+        } else if (current_token().type() == token_type::r_square) {
+            consume_and_advance();
+            break;
+        } else if (current_token().type() == token_type::semicolon) {
+            // TODO: error missing ']'
+            return std::unexpected(parse_error());
+        } else {
+            
+        }
+    }
+
+    auto return_type = context()
+        .index_type(
+            context().get_expression_type(base_handle),
+            index_args_types
+        )
+        .transform_error([&](auto&& err) {
+            this->diagnostics().push_back(err);
+            return err;
+        })
+        .value_or(poison_pill);
+    
+    return ast::indexed_variable{
+        .type     = return_type,
+        .array    = std::move(base_handle),
+        .indecies = std::move(index_args),
+    };
+}
+
+using namespace std::literals;
+
+auto parser::parse_member_access(ast::expression_leaf base)
+    -> parse_result<ast::expression_leaf> {
+    auto base_handle = ast::handle<ast::expression>(std::move(base));
+    auto base_type = context().get_expression_type(base);
+    auto [name, member_type] = [&] () 
+        -> std::pair<ast::identifier, ast::observer_handle<ast::type>> {
+        if (auto identifier_exp = parse_identifier()) {
+            auto member_type = context()
+                .member_type(base_type, *identifier_exp)
+                .transform_error([&](auto&& err) {
+                    diagnostics().push_back(err);
+                    return std::monostate();
+                })
+                .value_or(poison_pill);
+            return {std::move(*identifier_exp), member_type};
+        } else {
+            return {"##invalid"s, poison_pill};
+        }
+    }();
+
+    return ast::membered_variable{
+        .type = base_type,
+        .object = std::move(base_handle),
+        .member = name,
+    };
+}
+
+auto parser::determine_name_type(ast::identifier_view name)
+    -> ast::bare_name {
+    auto bundle_up = [&](auto id) {
+        return ast::bare_name(
+            std::in_place_type<ast::name_from_id_t<decltype(id)>>,
+            context().type_from_id(id), id
+        );
+    };
+    auto try_func = [&](auto&& member_func) {
+        return [&]() { return (context().*member_func)(name).transform(bundle_up);};
+    };
+
+    auto maybe_bare_name = context()
+        .try_get_variable_id(name)
+        .transform(bundle_up)
+        .or_else(try_func(&semantic_context::try_get_function_id))
+        .or_else(try_func(&semantic_context::try_get_constant_id))
+        .or_else(try_func(&semantic_context::try_get_enum_id));
+        // or_else error handle
+
+    if (maybe_bare_name.has_value()) {
+        return *maybe_bare_name;
+    } else {
+        return ast::constant_name{
+            .type = poison_pill,
+            .id = ast::constant_id::poison,
+        };
+    }
+}
 
 
 }

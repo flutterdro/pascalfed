@@ -6,7 +6,7 @@
 namespace fed {
 
 parser::parser(source::full_view source, diagnostics_buffer& buffer)
-    : m_lexer(source), m_diagnostics(buffer) {}
+    : m_lexer(buffer, source), m_diagnostics(buffer) {}
 
 auto parser::cursor() const noexcept
     -> source::iterator {
