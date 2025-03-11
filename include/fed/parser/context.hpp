@@ -19,7 +19,7 @@ class semantic_context {
     using variable_table = symbol_mapback<ast::observer_handle<ast::variable_declaration>>;
     using constant_table = symbol_mapback<ast::observer_handle<ast::constant_declaration>>;
     using type_table     = symbol_mapback<ast::observer_handle<ast::type_declaration>>;
-    using enum_table     = symbol_mapback<ast::observer_handle<ast::enumerated_type>>;
+    using enum_table     = symbol_mapback<ast::observer_handle<ast::type>>;
 public:
     using function_id = function_table::id;
     using variable_id = variable_table::id;
@@ -40,17 +40,19 @@ public:
         -> semantic_result<void>;
     auto add_variable(ast::variable_declaration_handle&)
         -> semantic_result<void>;
-    auto add_constant(ast::constant_declaration_handle&)
+    auto add_constant(ast::observer_handle<ast::constant_declaration>)
         -> semantic_result<void>;
     
-    auto get_ast_node(function_id)
-        -> ast::function_declaration*;
-    auto get_ast_node(variable_id)
-        -> ast::variable_declaration*;
-    auto get_ast_node(constant_id)
-        -> ast::constant_declaration*;
-    auto get_ast_node(type_id)
-        -> ast::type_declaration*;
+    auto get_ast_node(function_id) const
+        -> ast::observer_handle<ast::function_declaration>;
+    auto get_ast_node(variable_id) const
+        -> ast::observer_handle<ast::variable_declaration>;
+    auto get_ast_node(constant_id) const
+        -> ast::observer_handle<ast::constant_declaration>;
+    auto get_ast_node(enum_id) const
+        -> ast::observer_handle<ast::type>;
+    auto get_ast_node(type_id) const
+        -> ast::observer_handle<ast::type_declaration>;
 
     auto try_get_function_id(ast::identifier_view) const
         -> ast::maybe<function_id>;
@@ -78,14 +80,19 @@ public:
         -> semantic_result<void>;
     auto is_ordinal(ast::type*)
         -> bool;
-    auto get_expression_type(ast::expression const&)
+    auto get_expression_type(ast::expression const&) const
         -> ast::observer_handle<ast::type>;
-    auto get_expression_type(ast::expression_leaf const&)
+    auto get_expression_type(ast::expression_leaf const&) const
         -> ast::observer_handle<ast::type>;
-    auto get_expression_type(ast::observer_handle<ast::expression>)
+    auto get_expression_type(ast::observer_handle<ast::expression>) const
         -> ast::observer_handle<ast::type>;
-    auto get_expression_type(ast::observer_handle<ast::expression_leaf>)
+    auto get_expression_type(ast::observer_handle<ast::expression_leaf>) const
         -> ast::observer_handle<ast::type>;
+    auto get_constant_type(ast::constant const&) const
+        -> ast::observer_handle<ast::type>;
+    auto get_constant_type(ast::observer_handle<ast::constant>) const
+        -> ast::observer_handle<ast::type>;
+
     auto get_function_from_type(type_observer function) const
         -> semantic_result<ast::observer_handle<ast::function_type>>;
     auto get_function_from_type(ast::type const& function) const
@@ -98,10 +105,16 @@ public:
         -> semantic_result<ast::observer_handle<ast::record_type>>;
     auto get_record_from_type(ast::type const& record) const
         -> semantic_result<ast::observer_handle<ast::record_type>>;
+    auto get_pointer_from_type(type_observer) const
+        -> semantic_result<ast::observer_handle<ast::pointer_type>>;
+    auto get_pointer_from_type(ast::type const& ptr) const 
+        -> semantic_result<ast::observer_handle<ast::pointer_type>>;
 
-    auto dereference_type(ast::observer_handle<ast::type>)
+    auto dereference_type(ast::observer_handle<ast::type>) const
         -> semantic_result<ast::observer_handle<ast::type>>;
-    auto dereference_type(ast::type const&)
+    auto dereference_type(ast::observer_handle<ast::pointer_type>) const
+        -> semantic_result<ast::observer_handle<ast::type>>;
+    auto dereference_type(ast::pointer_type const&) const
         -> semantic_result<ast::observer_handle<ast::type>>;
     auto index_type(type_observer function, std::span<type_observer> arguments) const
         -> semantic_result<type_observer>;
@@ -136,6 +149,7 @@ private:
     variable_table m_variables;
     constant_table m_constants;
     type_table     m_types;
+    enum_table     m_enums;
 };
 } // namespace fed
 #endif

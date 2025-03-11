@@ -14,6 +14,7 @@ target_sources(fed_frontend
         parser/context.cpp
         diagnostics/buffer.cpp
         representations/raw-source.cpp
+        representations/symbol-table.cpp
 )
 
 find_package(Boost REQUIRED)

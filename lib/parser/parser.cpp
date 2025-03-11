@@ -1,5 +1,6 @@
 #include "fed/parser/parser.hpp"
 #include "fed/diagnostics/buffer.hpp"
+#include "fed/parser/context.hpp"
 #include "fed/scanner/token.hpp"
 
 
@@ -26,7 +27,18 @@ auto parser::consume_and_advance()
     m_lexer.advance_lexer();
     return token;
 }
- 
+auto parser::diagnostics() noexcept
+    -> diagnostics_buffer& { return m_diagnostics; }
+auto parser::context() noexcept
+    -> semantic_context& { return m_context; }
+auto parser::consume_and_advance_expecting(token_type token)
+    -> std::optional<parse_error> {
+    if (current_token().type() == token) {
+        consume_and_advance();
+        return std::nullopt;
+    }
+    else return parse_error();
 
+}
 
 } // namespace fed

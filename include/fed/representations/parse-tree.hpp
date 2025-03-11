@@ -124,7 +124,12 @@ public:
         return std::invoke(FWD(f), *this->m_handle);
     }
 
-    auto unsafe_get() const noexcept { return m_handle; }
+    template<typename F, typename... Ts>
+    friend auto then_all(F&& func, observer_handle<Ts>... handles)
+        -> std::invoke_result_t<F, Ts const&...>;
+
+    auto unsafe_value() const noexcept 
+        -> T const& { return *m_handle; }
 
 private:
     T const* m_handle;
@@ -135,7 +140,7 @@ auto then_all(F&& func, observer_handle<Ts>... handles)
     -> std::invoke_result_t<F, Ts const&...> {
     if ((handles.is_poisoned() or ...)) 
         return std::invoke_result_t<F, Ts const&...>(poison_pill);
-    return std::invoke(FWD(func), *handles.unsafe_get()...);
+    return std::invoke(FWD(func), *handles.m_handle...);
 }
 
 
@@ -150,25 +155,13 @@ using variant = std::variant<Ts...>;
 template<typename T>
 using maybe = std::optional<T>;
 
-namespace detail {
-struct string_hash
-{
-    using hash_type = std::hash<std::string_view>;
-    using is_transparent = void;
- 
-    std::size_t operator()(const char* str) const        { return hash_type{}(str); }
-    std::size_t operator()(std::string_view str) const   { return hash_type{}(str); }
-    std::size_t operator()(std::string const& str) const { return hash_type{}(str); }
-};
-} // namespace detail 
-template<typename T>
-using name_map = std::unordered_map<std::string, T, detail::string_hash, std::equal_to<>>;
+
 
 
 struct enumerated_type;
 
 struct type_declaration;
-using type_id = symbol_mapback<type_declaration>::id;
+using type_id = symbol_mapback<observer_handle<type_declaration>>::id;
 struct type_identifier {
     type_id id;
     handle<identifier> identifier;
@@ -187,18 +180,18 @@ struct label_declaration {
 // constant is either a number, a constant identifier 
 // (possibly signed), a character, or a string
 // TODO: handle constant id 
-using constant = std::variant<int, double, char, std::string_view>;
+struct constant_name; 
+struct integer_literal;
+struct real_literal;
+struct string_literal;
+using constant = variant<constant_name, integer_literal, real_literal, string_literal>;
 
 struct constant_declaration {
     source::view region;
     handle<identifier> identifiers;
     handle<constant> constants;
 };
-using constant_declaration_handle = handle<constant_declaration>;
-
-struct simple_type {};
-struct structured_type {};
-struct pointer_type {};
+using constant_id = symbol_mapback<ast::observer_handle<constant_declaration>>::id;
 
 struct enumerated_type;
 struct subrange_type;
@@ -209,6 +202,7 @@ struct set_type;
 struct file_type;
 struct function_type;
 struct procedure_type;
+struct pointer_type;
 
 using type = std::variant<
     enumerated_type,
@@ -219,6 +213,7 @@ using type = std::variant<
     set_type,
     file_type,
     function_type,
+    pointer_type,
     procedure_type
 >;
 
@@ -226,6 +221,10 @@ struct enum_member {};
 struct enumerated_type {
     source::view region;
     group<handle<identifier>> identifiers;
+};
+
+struct pointer_type {
+    handle<type> base;
 };
 
 struct subrange_type {
@@ -285,6 +284,24 @@ struct variable_declaration {
     group<handle<identifier>> identifiers;
     handle<type> type;
 };
+
+struct constant_name {
+    observer_handle<type> type;
+    constant_id id;
+};
+struct integer_literal {
+    observer_handle<type> type;
+    int value;
+};
+struct real_literal {
+    observer_handle<type> type;
+    double value;
+};
+struct string_literal {
+    observer_handle<type> type;
+    std::string value;
+};
+
 using variable_declaration_handle = handle<variable_declaration>;
 
 struct block {
@@ -317,7 +334,7 @@ struct function_heading {
 };
 
 struct function_declaration {
-    handle<function_heading> head;
+    handle<type> type;
     handle<block> body;
 };
 using function_declaration_handle = handle<function_declaration>;
@@ -351,17 +368,12 @@ struct program {
 
 struct function_name;
 struct variable_name;
-struct constant_name;
 struct enum_name;
-struct string_literal;
-struct number_literal;
 
 using bare_name = variant<
+    constant,
     function_name,
     variable_name,
-    constant_name,
-    string_literal,
-    number_literal,
     enum_name
 >;
 
@@ -426,7 +438,7 @@ struct unary_expression {
 using function_id = symbol_mapback<ast::observer_handle<function_declaration>>::id;
 using variable_id = symbol_mapback<ast::observer_handle<variable_declaration>>::id;
 using constant_id = symbol_mapback<ast::observer_handle<constant_declaration>>::id;
-using enum_id = symbol_mapback<ast::observer_handle<enumerated_type>>::id;
+using enum_id = symbol_mapback<ast::observer_handle<type>>::id;
 template<typename IdT>
 struct name_from_id;
 template<>
@@ -447,10 +459,6 @@ struct variable_name {
     observer_handle<type> type;
     variable_id id;
 };
-struct constant_name {
-    observer_handle<type> type;
-    constant_id id;
-};
 struct enum_name {
     observer_handle<type> type;
     enum_id id;
@@ -458,10 +466,6 @@ struct enum_name {
 struct number_literal {
     observer_handle<type> type;
     unsigned num;
-};
-struct string_literal {
-    observer_handle<type> type;
-    source::view string;
 };
 
 struct indexed_variable {

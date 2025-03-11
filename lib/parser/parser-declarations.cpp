@@ -1,26 +1,25 @@
-// #include "fed/parser/parser.hpp"
-// #include "fed/diagnostics/internal-error.hpp"
-// #include "fed/parser/parse_error.hpp"
-// #include "fed/representations/parse-tree.hpp"
-// #include "fed/scanner/token.hpp"
-// #include "fed/utils/superutil.hpp"
-// #include "fed/diagnostics/buffer.hpp"
-//
-// #include <__atomic/memory_order.h>
-// #include <boost/charconv/chars_format.hpp>
-// #include <boost/charconv/from_chars.hpp>
-//
-// #include <algorithm>
-// #include <charconv>
-// #include <initializer_list>
-// #include <optional>
-// #include <type_traits>
-// #include <utility>
-// #include <variant>
-//
+#include "fed/parser/parser.hpp"
+#include "fed/diagnostics/internal-error.hpp"
+#include "fed/parser/parse_error.hpp"
+#include "fed/representations/parse-tree.hpp"
+#include "fed/scanner/token.hpp"
+#include "fed/utils/superutil.hpp"
+#include "fed/diagnostics/buffer.hpp"
+
+#include <boost/charconv/chars_format.hpp>
+#include <boost/charconv/from_chars.hpp>
+
+#include <algorithm>
+#include <charconv>
+#include <initializer_list>
+#include <optional>
+#include <type_traits>
+#include <utility>
+#include <variant>
+
 // using fed::ast::handle;
 //
-// namespace fed {
+namespace fed {
 //
 //
 // // I kind of miss rust's operator ?
@@ -592,20 +591,20 @@
 // // seperated into a function because it gets repetetive
 // // actual identifier "parsing" happens while lexing
 // // identifier = [a-zA-z][a-zA-Z0-9]*
-// auto parser::parse_identifier()
-//     -> parse_result<ast::identifier> {
-//     auto const start = cursor();
-//     if (current_token().type() != token_type::identifier) {
-//         return std::unexpected(
-//             parse_error(
-//                 start.where(), current_token().view(),
-//                 parse_error::type::unexpected_token,
-//                 token_type::identifier
-//             )
-//         );
-//     }
-//
-//     return ast::identifier{consume_and_advance().view().base()};
-// }
-//
-// } // namespace fed 
+auto parser::parse_identifier()
+    -> parse_result<ast::identifier> {
+    auto const start = cursor();
+    if (current_token().type() != token_type::identifier) {
+        return std::unexpected(
+            parse_error(
+                start.where(), current_token().view(),
+                parse_error::type::unexpected_token,
+                token_type::identifier
+            )
+        );
+    }
+
+    return ast::identifier{consume_and_advance().view().base()};
+}
+
+} // namespace fed 

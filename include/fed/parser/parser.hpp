@@ -44,7 +44,7 @@ public:
     auto current_token()
         -> token_view;
     auto current_token_is(std::predicate<token_type> auto&& pred)
-        -> bool;
+        -> bool { return pred(current_token().type()); }
     auto cursor() const noexcept
         -> source::iterator;
     auto context() noexcept
@@ -145,9 +145,6 @@ private:
     diagnostics_buffer& m_diagnostics;
     semantic_context m_context;
 };
-
-
-
 
 
 } // namespace fed

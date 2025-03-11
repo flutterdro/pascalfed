@@ -25,9 +25,9 @@ public:
         : parse_error() {}
         
     auto message() const 
-        -> std::string;
+        -> std::string { return ""; }
     auto location() const
-        -> source::location;
+        -> source::location { return m_location; }
     
     auto set_region(source::view region) noexcept
         -> void;

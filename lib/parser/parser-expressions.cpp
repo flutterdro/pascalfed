@@ -384,13 +384,25 @@ auto parser::determine_name_type(ast::identifier_view name)
     auto try_func = [&](auto&& member_func) {
         return [&]() { return (context().*member_func)(name).transform(bundle_up);};
     };
+    auto try_guess_function = try_func(&semantic_context::try_get_function_id);
+    auto try_guess_enum     = try_func(&semantic_context::try_get_enum_id);
+    auto try_guess_variable = try_func(&semantic_context::try_get_variable_id);
+    auto try_guess_constant = [&, this]() {
+         return context()
+            .try_get_constant_id(name)
+            .transform([&](auto const id) -> ast::bare_name {
+                return ast::constant(
+                    std::in_place_type<ast::constant_name>,
+                    context().type_from_id(id), id
+                );
+            });
+    };
 
-    auto maybe_bare_name = context()
-        .try_get_variable_id(name)
-        .transform(bundle_up)
-        .or_else(try_func(&semantic_context::try_get_function_id))
-        .or_else(try_func(&semantic_context::try_get_constant_id))
-        .or_else(try_func(&semantic_context::try_get_enum_id));
+    auto maybe_bare_name = try_guess_variable()
+        .or_else(try_guess_enum)
+        .or_else(try_guess_function)
+        .or_else(try_guess_constant);
+        // or_else procedure 
         // or_else error handle
 
     if (maybe_bare_name.has_value()) {
