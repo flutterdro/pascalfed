@@ -19,28 +19,39 @@ class semantic_context {
     using variable_table = symbol_mapback<ast::observer_handle<ast::variable_declaration>>;
     using constant_table = symbol_mapback<ast::observer_handle<ast::constant_declaration>>;
     using type_table     = symbol_mapback<ast::observer_handle<ast::type_declaration>>;
-    using enum_table     = symbol_mapback<ast::observer_handle<ast::type>>;
 public:
     using function_id = function_table::id;
     using variable_id = variable_table::id;
     using constant_id = constant_table::id;
     using type_id     = type_table::id;
-    using enum_id     = enum_table::id;
 
     using type_observer = ast::observer_handle<ast::type>;
+
+
+    semantic_context();
+private:
+    auto init_poison_swamp()
+        -> void;
+    auto init_builtin_types() 
+        -> void;
+    auto init_builtin_constants()
+        -> void;
+public:
 
     auto enter_new_scope()
         -> void;
     auto exit_scope()
         -> void;
 
-    auto add_type(ast::type_declaration_handle&)
+    auto add_type(ast::type_declaration const&)
+        -> semantic_result<void>;
+    auto add_enum(ast::identifier_view name, ast::enumerated_type const&)
         -> semantic_result<void>;
     auto add_function(ast::function_declaration_handle&)
         -> semantic_result<void>;
     auto add_variable(ast::variable_declaration_handle&)
         -> semantic_result<void>;
-    auto add_constant(ast::observer_handle<ast::constant_declaration>)
+    auto add_constant(ast::constant_declaration const&)
         -> semantic_result<void>;
     
     auto get_ast_node(function_id) const
@@ -49,8 +60,6 @@ public:
         -> ast::observer_handle<ast::variable_declaration>;
     auto get_ast_node(constant_id) const
         -> ast::observer_handle<ast::constant_declaration>;
-    auto get_ast_node(enum_id) const
-        -> ast::observer_handle<ast::type>;
     auto get_ast_node(type_id) const
         -> ast::observer_handle<ast::type_declaration>;
 
@@ -62,8 +71,6 @@ public:
         -> ast::maybe<type_id>;
     auto try_get_constant_id(ast::identifier_view) const
         -> ast::maybe<constant_id>;
-    auto try_get_enum_id(ast::identifier_view) const
-        -> ast::maybe<enum_id>;
 
     auto type_from_id(function_id) const
         -> type_observer;
@@ -72,8 +79,6 @@ public:
     auto type_from_id(type_id) const
         -> type_observer;
     auto type_from_id(constant_id) const
-        -> type_observer;
-    auto type_from_id(enum_id) const
         -> type_observer;
 
     auto match_types(type_observer, type_observer) const
@@ -149,7 +154,8 @@ private:
     variable_table m_variables;
     constant_table m_constants;
     type_table     m_types;
-    enum_table     m_enums;
+    std::vector<ast::type_declaration> m_types_blob;
+    std::vector<ast::constant_declaration> m_constants_blob;
 };
 } // namespace fed
 #endif

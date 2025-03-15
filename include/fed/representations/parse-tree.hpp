@@ -112,6 +112,8 @@ public:
         : m_handle(ptr) {
         if (ptr == nullptr) throw internal_error("observer_handle cannot be constructed from nullptr");
     }
+    observer_handle(T const& val)
+        : m_handle(std::addressof(val)) {}
     observer_handle(nullptr_t) = delete;
     observer_handle(handle<T> const& handle)
         : m_handle(handle.m_handle.get()) {}
@@ -180,16 +182,22 @@ struct label_declaration {
 // constant is either a number, a constant identifier 
 // (possibly signed), a character, or a string
 // TODO: handle constant id 
+struct enum_constant;
 struct constant_name; 
 struct integer_literal;
 struct real_literal;
 struct string_literal;
-using constant = variant<constant_name, integer_literal, real_literal, string_literal>;
+using constant = variant<
+    constant_name,
+    integer_literal, 
+    real_literal,
+    enum_constant,
+    string_literal
+>;
 
 struct constant_declaration {
-    source::view region;
-    handle<identifier> identifiers;
-    handle<constant> constants;
+    identifier name;
+    handle<constant> constant;
 };
 using constant_id = symbol_mapback<ast::observer_handle<constant_declaration>>::id;
 
@@ -203,6 +211,7 @@ struct file_type;
 struct function_type;
 struct procedure_type;
 struct pointer_type;
+enum class type_builtin { integer = 1, boolean, real, character, };
 
 using type = std::variant<
     enumerated_type,
@@ -214,13 +223,13 @@ using type = std::variant<
     file_type,
     function_type,
     pointer_type,
-    procedure_type
+    procedure_type,
+    type_builtin
 >;
 
 struct enum_member {};
 struct enumerated_type {
-    source::view region;
-    group<handle<identifier>> identifiers;
+    group<identifier> enum_members;
 };
 
 struct pointer_type {
@@ -275,8 +284,8 @@ struct record_type {
 
 struct type_declaration {
     source::view region;
-    handle<identifier> name;
-    handle<type> types;
+    identifier name;
+    handle<type> type;
 };
 using type_declaration_handle = handle<type_declaration>;
 struct variable_declaration {
@@ -285,20 +294,21 @@ struct variable_declaration {
     handle<type> type;
 };
 
+struct enum_constant {
+    observer_handle<type> type;
+    int ord_value;
+};
 struct constant_name {
     observer_handle<type> type;
     constant_id id;
 };
 struct integer_literal {
-    observer_handle<type> type;
     int value;
 };
 struct real_literal {
-    observer_handle<type> type;
     double value;
 };
 struct string_literal {
-    observer_handle<type> type;
     std::string value;
 };
 

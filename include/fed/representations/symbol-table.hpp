@@ -18,7 +18,9 @@ enum class symbol_type {
     enum_,
     constant,
 };
-enum class naked_id : unsigned {};
+enum class naked_id : unsigned { poison = 0 };
+constexpr auto strip(auto other_id) noexcept
+    -> naked_id { return static_cast<naked_id>(std::to_underlying(other_id)); }
 struct symbol {
     naked_id id;
     symbol_type type;
@@ -41,6 +43,8 @@ public:
     using iterator = name_map<symbol>::iterator;
     auto add_symbol(std::string_view, symbol)
         -> iterator;
+    auto is_free_real_estate(std::string_view) const
+        -> bool;
     auto lookup(std::string_view) const
         -> std::optional<symbol>;
     auto add_new_scope()

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <span>
@@ -14,6 +15,128 @@
 
 
 namespace fed {
+constexpr auto const integer_min = std::numeric_limits<int>::min();
+constexpr auto const integer_max = std::numeric_limits<int>::max();
+
+semantic_context::semantic_context() {
+    init_poison_swamp();
+    init_builtin_types();
+}
+
+auto semantic_context::init_poison_swamp()
+    -> void {
+    m_types_blob.push_back(ast::type_declaration{
+        .name = ast::identifier("##Poisoned Type"),
+        .type = poison_pill,
+    });
+    m_types.add_symbol(m_types_blob.back());
+    m_constants_blob.push_back(ast::constant_declaration{
+        .name = ast::identifier("##Poisoned Constant"),
+        .constant = poison_pill,
+    });
+    m_constants.add_symbol(m_constants_blob.back());
+}
+auto semantic_context::init_builtin_types()
+    -> void {
+    m_types_blob.push_back(
+        ast::type_declaration{
+            .name = ast::identifier("Integer"),
+            .type = ast::type(ast::type_builtin::integer),
+        }
+    );
+    // since it is called on construction it cannot produce an error 
+    // because this function can return error only on name collisions
+    static_cast<void>(add_type(m_types_blob.back())); // NOLINT
+    m_types_blob.push_back(
+        ast::type_declaration{
+            .name = ast::identifier("Real"),
+            .type = ast::type(ast::type_builtin::real),
+        }
+    );
+    static_cast<void>(add_type(m_types_blob.back())); // NOLINT
+    m_types_blob.push_back(
+        ast::type_declaration{
+            .name = ast::identifier("Char"),
+            .type = ast::type(ast::type_builtin::character),
+        }
+    );
+    static_cast<void>(add_type(m_types_blob.back())); // NOLINT
+    m_types_blob.push_back(
+        ast::type_declaration{
+            .name = ast::identifier("Boolean"),
+            .type = ast::type(ast::enumerated_type{
+                .enum_members = ast::group<ast::identifier>{
+                    ast::identifier("False"),
+                    ast::identifier("True")
+                }
+            })
+        }
+    );
+    static_cast<void>(add_type(m_types_blob.back())); // NOLINT
+
+}
+
+auto semantic_context::add_type(ast::type_declaration const& type_decl) 
+    -> semantic_result<void> {
+    if (not m_current_scope->is_free_real_estate(type_decl.name)) {
+        return std::unexpected(contextual_error());
+    }
+    if (type_decl.type.is_poisoned()) {
+        m_current_scope->add_symbol(
+            type_decl.name, 
+            symbol{
+                .id = naked_id::poison,
+                .type = symbol_type::type,
+            }
+        );
+        return {};
+    }
+    // TODO: handle type aliases 
+    auto const& type = *type_decl.type;
+    auto id = m_types.add_symbol(type_decl);
+    m_current_scope->add_symbol(
+        type_decl.name, 
+        symbol{
+            .id = fed::strip(id),
+            .type = symbol_type::type, 
+        }
+    );
+    // enum members are treated like constants 
+    if (auto enum_type_ptr = std::get_if<ast::enumerated_type>(&type)) {
+        auto const& enum_type = *enum_type_ptr;
+        auto i = int(0);
+        for (auto const& enum_member : enum_type.enum_members) {
+            m_constants_blob.push_back(ast::constant_declaration{
+                .name = enum_member,
+                .constant = ast::constant(ast::enum_constant{
+                    .type = type_decl.type,
+                    .ord_value = i++,
+                })
+            });
+            auto is_success = add_constant(m_constants_blob.back());
+            if (not is_success) {
+                return is_success;
+            }
+        }
+    }
+    return {};
+}
+
+auto semantic_context::add_constant(ast::constant_declaration const& const_decl)
+    -> semantic_result<void> { 
+    if (not m_current_scope->is_free_real_estate(const_decl.name)) {
+        return std::unexpected(contextual_error());
+    }
+    auto id = m_constants.add_symbol(const_decl);
+    m_current_scope->add_symbol(
+        const_decl.name,
+        symbol{
+            .id = fed::strip(id),
+            .type = symbol_type::constant,
+        }
+    );
+    return {};
+}
 
 namespace {
 struct type_matcher {
@@ -104,6 +227,11 @@ struct type_matcher {
         -> semantic_result<void> {
         
     }
+    auto operator()(ast::type_builtin const& type1, ast::type_builtin const& type2) const
+        -> semantic_result<void> {
+        if (type1 == type2) return {};
+        return std::unexpected(contextual_error());
+    }
 
     //catch all
     auto operator()(auto const& type1, auto const& type2) const
@@ -149,15 +277,6 @@ auto semantic_context::try_get_constant_id(ast::identifier_view name) const
         return static_cast<constant_id>(sym.id);
     });
 }
-auto semantic_context::try_get_enum_id(ast::identifier_view name) const
-    -> ast::maybe<enum_id> {
-    return m_current_scope->lookup(name).and_then([](symbol sym) 
-        -> ast::maybe<enum_id> {
-        if (sym.type != symbol_type::enum_) return std::nullopt;
-        return static_cast<enum_id>(sym.id);
-    });
-}
-
 
 auto semantic_context::get_ast_node(variable_id id) const
     -> ast::observer_handle<ast::variable_declaration> {
@@ -171,10 +290,7 @@ auto semantic_context::get_ast_node(constant_id id) const
     -> ast::observer_handle<ast::constant_declaration> {
     return m_constants.lookup(id);
 }
-auto semantic_context::get_ast_node(enum_id id) const 
-    -> ast::observer_handle<ast::type> {
-    return m_enums.lookup(id);
-}
+
 auto semantic_context::get_ast_node(type_id id) const
     -> ast::observer_handle<ast::type_declaration> {
     return m_types.lookup(id);
@@ -190,7 +306,7 @@ auto semantic_context::type_from_id(constant_id id) const
     -> type_observer {
     return get_ast_node(id).and_then(
         [&](ast::constant_declaration const& decl) -> type_observer { 
-            return get_constant_type(decl.constants);
+            return get_constant_type(decl.constant);
         }
     );
 }
@@ -200,14 +316,11 @@ auto semantic_context::type_from_id(function_id id) const
         [](ast::function_declaration const& decl) -> type_observer { return decl.type; }
     );
 }
-auto semantic_context::type_from_id(enum_id id) const
-    -> type_observer {
-    return get_ast_node(id);
-}
+
 auto semantic_context::type_from_id(type_id id) const
     -> type_observer {
     return get_ast_node(id).and_then(
-        [](ast::type_declaration const& decl) -> type_observer { return decl.types; }
+        [](ast::type_declaration const& decl) -> type_observer { return decl.type; }
     );
 }
 

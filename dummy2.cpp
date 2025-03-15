@@ -2,6 +2,8 @@
 #include <stdexcept>
 
 
+
+
 void throws(int a) {
     if (a) {
 

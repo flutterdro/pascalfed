@@ -385,7 +385,6 @@ auto parser::determine_name_type(ast::identifier_view name)
         return [&]() { return (context().*member_func)(name).transform(bundle_up);};
     };
     auto try_guess_function = try_func(&semantic_context::try_get_function_id);
-    auto try_guess_enum     = try_func(&semantic_context::try_get_enum_id);
     auto try_guess_variable = try_func(&semantic_context::try_get_variable_id);
     auto try_guess_constant = [&, this]() {
          return context()
@@ -399,7 +398,6 @@ auto parser::determine_name_type(ast::identifier_view name)
     };
 
     auto maybe_bare_name = try_guess_variable()
-        .or_else(try_guess_enum)
         .or_else(try_guess_function)
         .or_else(try_guess_constant);
         // or_else procedure 
