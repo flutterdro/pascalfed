@@ -2,6 +2,7 @@
 #define FED_PARSER_HPP_
 
 #include "fed/diagnostics/buffer.hpp"
+#include "fed/diagnostics/compile-error.hpp"
 #include "fed/parser/context.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/scanner/lex.hpp"
@@ -11,6 +12,7 @@
 
 #include <concepts>
 #include <expected>
+#include <variant>
 
 namespace fed {
 
@@ -29,16 +31,16 @@ public:
         };
     };
 public: 
-    explicit parser(source::full_view source, diagnostics_buffer& buffer);
+    explicit parser(source::full_view, semantic_context, diagnostics_buffer&);
 
     auto consume_and_advance()
         -> token_view;
     auto consume_and_advance_expecting(token_type token)
-        -> std::optional<parse_error>;
+        -> void;
     auto advance_until(std::predicate<token_type> auto&& func)
         -> void;
     auto consume_and_advance_expecting(std::predicate<token_type> auto&& func)
-        -> std::optional<parse_error>;
+        -> void;
     auto maybe_consume_and_advance_expecting(token_type token)
         -> bool;
     auto current_token()
@@ -51,6 +53,8 @@ public:
         -> semantic_context&;
     auto diagnostics() noexcept
         -> diagnostics_buffer&;
+    auto push_error(compilation_error err) 
+        -> std::monostate;
 
     // every parse function has a contract
     // they must advance lexer to the next token 
@@ -119,21 +123,21 @@ public:
     auto parse_unary_expression()
         -> parse_result<ast::unary_expression>;
     auto parse_expression_leaf()
-        -> parse_result<ast::expression_leaf>;
+        -> parse_result<ast::expression>;
 
 private:
     auto determine_name_type(ast::identifier_view)
         -> ast::bare_name;
-    auto parse_expression_leaf(ast::expression_leaf)
-        -> parse_result<ast::expression_leaf>;
-    auto parse_call(ast::expression_leaf)
-        -> parse_result<ast::expression_leaf>;
-    auto parse_indexing(ast::expression_leaf)
-        -> parse_result<ast::expression_leaf>;
-    auto parse_dereferencing(ast::expression_leaf)
-        -> parse_result<ast::expression_leaf>;
-    auto parse_member_access(ast::expression_leaf)
-        -> parse_result<ast::expression_leaf>;
+    auto parse_expression_leaf(ast::expression)
+        -> parse_result<ast::expression>;
+    auto parse_call(ast::expression)
+        -> parse_result<ast::expression>;
+    auto parse_indexing(ast::expression)
+        -> parse_result<ast::expression>;
+    auto parse_dereferencing(ast::expression)
+        -> parse_result<ast::expression>;
+    auto parse_member_access(ast::expression)
+        -> parse_result<ast::expression>;
     auto parse_expression(ast::expression lhs, precedence::level threshold)
         -> parse_result<ast::expression>;
     auto parse_lhs(precedence::level threshold)
@@ -147,6 +151,21 @@ private:
 };
 
 
+inline auto parser::advance_until(std::predicate<token_type> auto&& predicate)
+    -> void {
+    while (not (predicate and func::equal_to(token_type::eof))(current_token().type())) {
+        consume_and_advance();
+    }
+}
+inline auto parser::consume_and_advance_expecting(std::predicate<token_type> auto&& func)
+    -> void {
+    if (func(current_token().type())) {
+        consume_and_advance();
+        return;
+    } else {
+        push_error(parse_error());
+    }
+}
 } // namespace fed
 
 

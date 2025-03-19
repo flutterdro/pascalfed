@@ -50,7 +50,7 @@ public:
     constexpr handle(poison_t) noexcept
         :m_handle(nullptr) {}
     auto operator=(handle const&) = delete;
-    auto operator=(handle&&) -> handle& = default;
+    auto operator=(handle&&) noexcept -> handle& = default;
     template<typename U>
     auto operator=(handle<U>&& derived)
         -> handle& {
@@ -117,7 +117,12 @@ public:
     observer_handle(nullptr_t) = delete;
     observer_handle(handle<T> const& handle)
         : m_handle(handle.m_handle.get()) {}
-    observer_handle(observer_handle const&) = default;
+    observer_handle(observer_handle const&) noexcept = default;
+    auto operator=(observer_handle const&) noexcept
+        -> observer_handle& = default;
+    observer_handle(observer_handle&&) noexcept = default;
+    auto operator=(observer_handle&&) noexcept
+        -> observer_handle& = default;
     auto is_poisoned() const noexcept
         -> bool { return m_handle == nullptr; }
     auto and_then(auto&& f) const noexcept {
@@ -163,7 +168,7 @@ using maybe = std::optional<T>;
 struct enumerated_type;
 
 struct type_declaration;
-using type_id = symbol_mapback<observer_handle<type_declaration>>::id;
+using type_id = symbol_mapback<handle<type_declaration>>::id;
 struct type_identifier {
     type_id id;
     handle<identifier> identifier;
@@ -199,7 +204,7 @@ struct constant_declaration {
     identifier name;
     handle<constant> constant;
 };
-using constant_id = symbol_mapback<ast::observer_handle<constant_declaration>>::id;
+using constant_id = symbol_mapback<ast::handle<constant_declaration>>::id;
 
 struct enumerated_type;
 struct subrange_type;
@@ -289,8 +294,7 @@ struct type_declaration {
 };
 using type_declaration_handle = handle<type_declaration>;
 struct variable_declaration {
-    source::view region;
-    group<handle<identifier>> identifiers;
+    identifier name;
     handle<type> type;
 };
 
@@ -378,13 +382,11 @@ struct program {
 
 struct function_name;
 struct variable_name;
-struct enum_name;
 
 using bare_name = variant<
     constant,
     function_name,
-    variable_name,
-    enum_name
+    variable_name
 >;
 
 struct indexed_variable;
@@ -445,10 +447,9 @@ struct unary_expression {
 };
 
 
-using function_id = symbol_mapback<ast::observer_handle<function_declaration>>::id;
-using variable_id = symbol_mapback<ast::observer_handle<variable_declaration>>::id;
-using constant_id = symbol_mapback<ast::observer_handle<constant_declaration>>::id;
-using enum_id = symbol_mapback<ast::observer_handle<type>>::id;
+using function_id = symbol_mapback<ast::handle<function_declaration>>::id;
+using variable_id = symbol_mapback<ast::handle<variable_declaration>>::id;
+using constant_id = symbol_mapback<ast::handle<constant_declaration>>::id;
 template<typename IdT>
 struct name_from_id;
 template<>
@@ -457,8 +458,6 @@ template<>
 struct name_from_id<variable_id> { using type = variable_name; };
 template<>
 struct name_from_id<constant_id> { using type = constant_name; };
-template<>
-struct name_from_id<enum_id> { using type = enum_name; };
 template<typename IdT>
 using name_from_id_t = name_from_id<IdT>::type;
 struct function_name {
@@ -468,10 +467,6 @@ struct function_name {
 struct variable_name {
     observer_handle<type> type;
     variable_id id;
-};
-struct enum_name {
-    observer_handle<type> type;
-    enum_id id;
 };
 struct number_literal {
     observer_handle<type> type;
@@ -500,6 +495,147 @@ struct membered_variable {
 
 
 
+
+
+
 } // namespace fed
+
+
+template<typename T>
+struct fmt::formatter<fed::ast::handle<T>> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    constexpr auto format(
+        fed::ast::handle<T> const& val, 
+        fmt::format_context& ctx
+    ) const {
+        if (not val.is_poisoned()) {
+            return fmt::formatter<T>{indentable::same_level()}.format(*val, ctx);
+        }
+        ctx.out() = indentable::indent(ctx);
+        ctx.out() = fmt::format_to(ctx.out(), "poisoned\n");
+        return ctx.out();
+    }
+
+};
+
+template<>
+struct fmt::formatter<fed::ast::expression> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::expression const& val, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+template<>
+struct fmt::formatter<fed::ast::binary_expression> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(fed::ast::binary_expression const&, fmt::format_context&) const
+        -> fmt::format_context::iterator;
+};
+template<>
+struct fmt::formatter<fed::ast::unary_expression> : indentable {
+    unsigned level;
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(fed::ast::unary_expression const&, fmt::format_context&) const
+        -> fmt::format_context::iterator;
+};
+template<>
+struct fmt::formatter<fed::ast::expression_leaf> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::expression_leaf const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+template<>
+struct fmt::formatter<fed::ast::dereferenced_variable> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::dereferenced_variable const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+template<>
+struct fmt::formatter<fed::ast::called_variable> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::called_variable const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+template<>
+struct fmt::formatter<fed::ast::indexed_variable> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::indexed_variable const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+template<>
+struct fmt::formatter<fed::ast::membered_variable> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::membered_variable const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+template<>
+struct fmt::formatter<fed::ast::bare_name> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::bare_name const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+template<>
+struct fmt::formatter<fed::ast::variable_name> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::variable_name const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+template<>
+struct fmt::formatter<fed::ast::function_name> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::function_name const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+template<>
+struct fmt::formatter<fed::ast::constant> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::constant const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
 
 #endif

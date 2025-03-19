@@ -5,10 +5,39 @@
 #include <algorithm>
 #include <utility>
 
+#include <fmt/core.h>
+
 #define FWD(expr) std::forward<decltype(expr)>(expr)
 #define LIFT(func) [](auto&&... xs) { return func(FWD(xs)...); }
 #define LIFT_MEMBER(func) [this](auto&&... xs) { return this->func(FWD(xs)...); }
 
+class indentable {
+public:
+    constexpr indentable() 
+        : level(0) {}
+    constexpr auto new_level() const noexcept {
+        auto new_level = indentable();
+        new_level.level = level + 1;
+        return new_level;
+    }
+    constexpr auto same_level() const noexcept {
+        auto new_level = indentable();
+        new_level.level = level;
+        return new_level;
+    }
+
+    constexpr auto indent(fmt::format_context& ctx) const {
+        for (unsigned i = 0; i < level; ++i) {
+            ctx.out()++ = ' ';
+            ctx.out()++ = ' ';
+        }
+        ctx.out()++ = '|';
+        return ctx.out();
+    }
+private:
+    unsigned level;
+
+};
 
 namespace fed {
 

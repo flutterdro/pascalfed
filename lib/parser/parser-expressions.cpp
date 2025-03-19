@@ -3,6 +3,7 @@
 #include "fed/representations/parse-tree.hpp"
 #include "fed/scanner/token.hpp"
 #include "fed/utils/superutil.hpp"
+#include <fmt/std.h>
 #include <__expected/unexpected.h>
 #include <fmt/base.h>
 #include <fmt/ostream.h>
@@ -20,22 +21,26 @@ if (opt.has_value()) return std::unexpected{std::move(*opt)};
 namespace fed {
 
 using ast::handle;
-int g_counter = 0;
 auto parser::parse_expression()
     -> parse_result<ast::expression> {
     if (current_token().type() == token_type::l_paren) {
         consume_and_advance();
-        auto lhs = *parse_expression();
-        TRY_OPT(consume_and_advance_expecting(token_type::r_paren));
-        return parse_expression(std::move(lhs), precedence::lowest);
+        auto lhs = parse_expression()
+            .transform_error(LIFT_MEMBER(push_error))
+            .value_or(context().synthesize_dummy_expression());
+        consume_and_advance_expecting(token_type::r_paren);
+        // return parse_expression(std::move(lhs), precedence::lowest);
+        return lhs;
     }
     if (func::any_of(std::array{
         token_type::plus,
         token_type::minus,
         token_type::keyword_not,
-    })(current_token().type())) { return *parse_unary_expression(); }
+    })(current_token().type())) { return parse_unary_expression(); }
 
-    auto lhs = *parse_expression_leaf();
+    auto lhs = parse_expression_leaf()
+        .transform_error(LIFT_MEMBER(push_error))
+        .value_or(context().synthesize_dummy_expression());
 
     return parse_expression(std::move(lhs), precedence::lowest);
 
@@ -43,27 +48,32 @@ auto parser::parse_expression()
 
 auto parser::parse_unary_expression()
     -> parse_result<ast::unary_expression> {
-   //  auto result = ast::unary_expression();
-   //  auto token = consume_and_advance().type();
-   //
-   //  auto token_to_operation = [](token_type type) -> ast::unary_operation {
-   //      switch (type) {
-   //          case token_type::plus:        return ast::unary_operation::identity;  
-   //          case token_type::minus:       return ast::unary_operation::negation;
-   //          case token_type::keyword_not: return ast::unary_operation::logical_negation;
-   //          default: std::unreachable();
-   //      }
-   //  };
-   //
-   //  result.operation = token_to_operation(token);
-   //
-   //  if (current_token().type() == token_type::l_paren) {
-   //      TRY(result.operand, parse_expression());
-   //  } else {
-   //      TRY(result.operand, parse_expression_leaf());
-   //  }
-   // 
-   //  return result;
+    auto token = consume_and_advance().type();
+
+    auto token_to_operation = [](token_type type) -> ast::unary_operation {
+        switch (type) {
+            case token_type::plus:        return ast::unary_operation::identity;  
+            case token_type::minus:       return ast::unary_operation::negation;
+            case token_type::keyword_not: return ast::unary_operation::logical_negation;
+            default: std::unreachable();
+        }
+    };
+
+    auto operand = (
+        current_token().type() == token_type::l_paren ?
+            parse_expression() :
+            parse_expression_leaf()
+        )
+        .transform_error(LIFT_MEMBER(push_error))
+        .value_or(context().synthesize_dummy_expression());
+    auto type = context().get_expression_type(operand);
+
+
+    return ast::unary_expression{
+        .type = type,
+        .operand = std::move(operand),
+        .operation = token_to_operation(token),
+    };
 }
 inline constexpr auto is_binary_operator = [](token_type type) {
     return func::any_of(std::array{
@@ -112,11 +122,16 @@ auto parser::parse_expression(ast::expression lhs, precedence::level threshold)
     
     auto token = current_token().type();
 
+    // You fucking moron. It accidentally works because of this
+    // When it encounters r_paren it goes up as it should
+    // why did I do this anyway?
     if (not is_binary_operator(token)) return lhs;
 
     if (auto new_threshold = binary_operator_precedence(token);
         new_threshold > threshold) {
-        lhs = *parse_expression(std::move(lhs), new_threshold);
+        lhs = parse_expression(std::move(lhs), new_threshold)
+            .transform_error(LIFT_MEMBER(push_error))
+            .value_or(context().synthesize_dummy_expression());
     }
     if (not is_binary_operator(current_token().type())) return lhs;
     
@@ -127,7 +142,6 @@ auto parser::parse_expression(ast::expression lhs, precedence::level threshold)
 
 auto parser::parse_rhs(ast::expression lhs, precedence::level threshold) 
     -> parse_result<ast::binary_expression> {
-    fmt::println("Called parse_rhs(_, {})", +threshold);
     auto token_to_operation = [](token_type type) {
         switch (type) {
             using enum token_type;
@@ -151,17 +165,23 @@ auto parser::parse_rhs(ast::expression lhs, precedence::level threshold)
     };
 
     if (not is_binary_operator(current_token().type())) { 
-            fmt::println("mark 8");
-        return std::unexpected(parse_error());}
+        return std::unexpected(parse_error());
+    }
     auto operation_token = consume_and_advance().type();
     auto rhs = [&] -> ast::expression {
         if (current_token().type() == token_type::l_paren) {
-            return *parse_expression();
+            return parse_expression()
+                .transform_error(LIFT_MEMBER(push_error))
+                .value_or(context().synthesize_dummy_expression());
         } else {
-            auto rhs = *parse_expression_leaf();
+            auto rhs = parse_expression_leaf()
+                .transform_error(LIFT_MEMBER(push_error))
+                .value_or(context().synthesize_dummy_expression());
             if (auto tok = current_token().type();
                 is_binary_operator(tok) and binary_operator_precedence(tok)  > threshold) {
-                return *parse_expression(std::move(rhs), threshold);
+                return parse_expression(std::move(rhs), threshold)
+                    .transform_error(LIFT_MEMBER(push_error))
+                    .value_or(context().synthesize_dummy_expression());
             }
             return rhs;
         }
@@ -175,7 +195,7 @@ auto parser::parse_rhs(ast::expression lhs, precedence::level threshold)
 }
 
 auto parser::parse_expression_leaf() 
-    -> parse_result<ast::expression_leaf> {
+    -> parse_result<ast::expression> {
     auto const lookahead = current_token();
     switch (lookahead.type()) {
         case token_type::identifier: {
@@ -194,8 +214,8 @@ auto parser::parse_expression_leaf()
     }
 }
 
-auto parser::parse_expression_leaf(ast::expression_leaf base)
-    -> parse_result<ast::expression_leaf> {
+auto parser::parse_expression_leaf(ast::expression base)
+    -> parse_result<ast::expression> {
     auto const lookahead = current_token();
     switch (lookahead.type()) {
         case token_type::caret: {
@@ -220,8 +240,8 @@ auto parser::parse_expression_leaf(ast::expression_leaf base)
     }
 }
 
-auto parser::parse_dereferencing(ast::expression_leaf base)
-    -> parse_result<ast::expression_leaf> {
+auto parser::parse_dereferencing(ast::expression base)
+    -> parse_result<ast::expression> {
     auto base_handle     = handle<ast::expression>(std::move(base));
     auto expression_type = [&] () -> ast::observer_handle<ast::type> {
         auto pointer_type = context().get_expression_type(base_handle);
@@ -240,9 +260,15 @@ auto parser::parse_dereferencing(ast::expression_leaf base)
     );
 }
 
-auto parser::parse_call(ast::expression_leaf base)
-    -> parse_result<ast::expression_leaf> {
+auto parser::parse_call(ast::expression base)
+    -> parse_result<ast::expression> {
     using enum token_type;
+    static constexpr auto soft_terminators = std::array{
+        comma, r_paren, semicolon
+    };
+    static constexpr auto hard_terminators = std::array{
+        comma, r_paren, semicolon
+    };
     auto base_handle       = ast::handle<ast::expression>(std::move(base));
     auto caller_args_types = ast::group<ast::observer_handle<ast::type>>();
     auto caller_args       = ast::group<ast::handle<ast::expression>>();
@@ -257,8 +283,8 @@ auto parser::parse_call(ast::expression_leaf base)
             caller_args_types.push_back(poison_pill);
             caller_args.push_back(poison_pill);
         }
-        if (current_token_is(not func::any_of(std::array{comma, r_paren, semicolon}))) {
-            // TODO: error recovery
+        if (current_token_is(not func::any_of(soft_terminators))) {
+             advance_until(func::any_of(hard_terminators));
         }
         if (current_token().type() == token_type::comma) {
             consume_and_advance();
@@ -292,8 +318,8 @@ auto parser::parse_call(ast::expression_leaf base)
     };
 }
 
-auto parser::parse_indexing(ast::expression_leaf base) 
-    -> parse_result<ast::expression_leaf> {
+auto parser::parse_indexing(ast::expression base) 
+    -> parse_result<ast::expression> {
     using enum token_type;
     auto base_handle      = ast::handle<ast::expression>(std::move(base));
     auto index_args_types = ast::group<ast::observer_handle<ast::type>>();
@@ -346,8 +372,8 @@ auto parser::parse_indexing(ast::expression_leaf base)
 
 using namespace std::literals;
 
-auto parser::parse_member_access(ast::expression_leaf base)
-    -> parse_result<ast::expression_leaf> {
+auto parser::parse_member_access(ast::expression base)
+    -> parse_result<ast::expression> {
     auto base_handle = ast::handle<ast::expression>(std::move(base));
     auto base_type = context().get_expression_type(base);
     auto [name, member_type] = [&] () 
@@ -367,7 +393,7 @@ auto parser::parse_member_access(ast::expression_leaf base)
     }();
 
     return ast::membered_variable{
-        .type = base_type,
+        .type   = member_type,
         .object = std::move(base_handle),
         .member = name,
     };
@@ -375,14 +401,14 @@ auto parser::parse_member_access(ast::expression_leaf base)
 
 auto parser::determine_name_type(ast::identifier_view name)
     -> ast::bare_name {
-    auto bundle_up = [&](auto id) {
+    auto bundle_up = [=, this](auto id) {
         return ast::bare_name(
             std::in_place_type<ast::name_from_id_t<decltype(id)>>,
             context().type_from_id(id), id
         );
     };
-    auto try_func = [&](auto&& member_func) {
-        return [&]() { return (context().*member_func)(name).transform(bundle_up);};
+    auto try_func = [=, this](auto member_func) {
+        return [=, this]() { return (context().*member_func)(name).transform(bundle_up);};
     };
     auto try_guess_function = try_func(&semantic_context::try_get_function_id);
     auto try_guess_variable = try_func(&semantic_context::try_get_variable_id);
@@ -396,6 +422,7 @@ auto parser::determine_name_type(ast::identifier_view name)
                 );
             });
     };
+
 
     auto maybe_bare_name = try_guess_variable()
         .or_else(try_guess_function)

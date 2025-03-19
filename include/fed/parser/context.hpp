@@ -5,6 +5,7 @@
 #include "fed/representations/symbol-table.hpp"
 #include "fed/parser/semantic-error.hpp"
 #include <expected>
+#include <memory>
 
 namespace fed {
 
@@ -15,10 +16,10 @@ enum class check_result {
 template<typename T>
 using semantic_result = std::expected<T, contextual_error>;
 class semantic_context {
-    using function_table = symbol_mapback<ast::observer_handle<ast::function_declaration>>;
-    using variable_table = symbol_mapback<ast::observer_handle<ast::variable_declaration>>;
-    using constant_table = symbol_mapback<ast::observer_handle<ast::constant_declaration>>;
-    using type_table     = symbol_mapback<ast::observer_handle<ast::type_declaration>>;
+    using function_table = symbol_mapback<ast::handle<ast::function_declaration>>;
+    using variable_table = symbol_mapback<ast::handle<ast::variable_declaration>>;
+    using constant_table = symbol_mapback<ast::handle<ast::constant_declaration>>;
+    using type_table     = symbol_mapback<ast::handle<ast::type_declaration>>;
 public:
     using function_id = function_table::id;
     using variable_id = variable_table::id;
@@ -29,6 +30,7 @@ public:
 
 
     semantic_context();
+    semantic_context(semantic_context&&) = default;
 private:
     auto init_poison_swamp()
         -> void;
@@ -43,15 +45,13 @@ public:
     auto exit_scope()
         -> void;
 
-    auto add_type(ast::type_declaration const&)
+    auto add_type(ast::type_declaration)
         -> semantic_result<void>;
-    auto add_enum(ast::identifier_view name, ast::enumerated_type const&)
+    auto add_function(ast::function_declaration)
         -> semantic_result<void>;
-    auto add_function(ast::function_declaration_handle&)
+    auto add_variable(ast::variable_declaration)
         -> semantic_result<void>;
-    auto add_variable(ast::variable_declaration_handle&)
-        -> semantic_result<void>;
-    auto add_constant(ast::constant_declaration const&)
+    auto add_constant(ast::constant_declaration)
         -> semantic_result<void>;
     
     auto get_ast_node(function_id) const
@@ -80,6 +80,12 @@ public:
         -> type_observer;
     auto type_from_id(constant_id) const
         -> type_observer;
+
+    auto get_integer_id() const 
+        -> type_id;
+
+    auto synthesize_dummy_expression() const
+        -> ast::expression;
 
     auto match_types(type_observer, type_observer) const
         -> semantic_result<void>;
@@ -149,13 +155,12 @@ public:
     auto sub_types(ast::type const&, ast::type const&) const
         -> semantic_result<type_observer>;
 private:
+    std::unique_ptr<scope> m_root;
     scope* m_current_scope;
     function_table m_functions;
     variable_table m_variables;
     constant_table m_constants;
     type_table     m_types;
-    std::vector<ast::type_declaration> m_types_blob;
-    std::vector<ast::constant_declaration> m_constants_blob;
 };
 } // namespace fed
 #endif

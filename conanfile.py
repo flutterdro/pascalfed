@@ -10,6 +10,7 @@ class Recipe(ConanFile):
 
     def requirements(self):
         self.requires("fmt/[~11]")
+        self.requires("cpptrace/0.8.2")
         self.requires("boost/1.86.0")
 
     def build_requirements(self):

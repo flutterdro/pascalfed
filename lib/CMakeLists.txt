@@ -15,12 +15,14 @@ target_sources(fed_frontend
         diagnostics/buffer.cpp
         representations/raw-source.cpp
         representations/symbol-table.cpp
+        representations/parse-tree.cpp
 )
 
 find_package(Boost REQUIRED)
 find_package(fmt REQUIRED)
+find_package(cpptrace REQUIRED)
 
-target_link_libraries(fed_frontend PRIVATE boost::boost fmt::fmt)
+target_link_libraries(fed_frontend PUBLIC boost::boost fmt::fmt cpptrace::cpptrace)
 
 
 

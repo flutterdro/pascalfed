@@ -12,56 +12,56 @@
 #include <optional>
 #include <span>
 #include <string_view>
+#include <utility>
 
 
 namespace fed {
 constexpr auto const integer_min = std::numeric_limits<int>::min();
 constexpr auto const integer_max = std::numeric_limits<int>::max();
 
-semantic_context::semantic_context() {
+semantic_context::semantic_context() 
+    : m_root(std::make_unique<scope>()){
+    m_current_scope = m_root.get();
     init_poison_swamp();
     init_builtin_types();
 }
 
 auto semantic_context::init_poison_swamp()
     -> void {
-    m_types_blob.push_back(ast::type_declaration{
-        .name = ast::identifier("##Poisoned Type"),
+    add_type(ast::type_declaration{ // NOLINT
+        .name = "##Poisoned Type",
         .type = poison_pill,
     });
-    m_types.add_symbol(m_types_blob.back());
-    m_constants_blob.push_back(ast::constant_declaration{
-        .name = ast::identifier("##Poisoned Constant"),
+    add_constant(ast::constant_declaration{ // NOLINT
+        .name = "##Poisoned Constant",
         .constant = poison_pill,
     });
-    m_constants.add_symbol(m_constants_blob.back());
+    add_variable(ast::variable_declaration{ // NOLINT
+        .name = "##Poisoned Variable",
+        .type = poison_pill,
+    });
 }
 auto semantic_context::init_builtin_types()
     -> void {
-    m_types_blob.push_back(
+    add_type( // NOLINT
         ast::type_declaration{
             .name = ast::identifier("Integer"),
             .type = ast::type(ast::type_builtin::integer),
         }
     );
-    // since it is called on construction it cannot produce an error 
-    // because this function can return error only on name collisions
-    static_cast<void>(add_type(m_types_blob.back())); // NOLINT
-    m_types_blob.push_back(
+    add_type( // NOLINT
         ast::type_declaration{
             .name = ast::identifier("Real"),
             .type = ast::type(ast::type_builtin::real),
         }
     );
-    static_cast<void>(add_type(m_types_blob.back())); // NOLINT
-    m_types_blob.push_back(
+    add_type( // NOLINT
         ast::type_declaration{
             .name = ast::identifier("Char"),
             .type = ast::type(ast::type_builtin::character),
         }
     );
-    static_cast<void>(add_type(m_types_blob.back())); // NOLINT
-    m_types_blob.push_back(
+    add_type( // NOLINT
         ast::type_declaration{
             .name = ast::identifier("Boolean"),
             .type = ast::type(ast::enumerated_type{
@@ -72,70 +72,66 @@ auto semantic_context::init_builtin_types()
             })
         }
     );
-    static_cast<void>(add_type(m_types_blob.back())); // NOLINT
 
 }
 
-auto semantic_context::add_type(ast::type_declaration const& type_decl) 
+auto semantic_context::add_type(ast::type_declaration type_decl) 
     -> semantic_result<void> {
-    if (not m_current_scope->is_free_real_estate(type_decl.name)) {
+     if (not m_current_scope->is_free_real_estate(type_decl.name)) {
         return std::unexpected(contextual_error());
     }
-    if (type_decl.type.is_poisoned()) {
-        m_current_scope->add_symbol(
-            type_decl.name, 
-            symbol{
-                .id = naked_id::poison,
-                .type = symbol_type::type,
-            }
-        );
-        return {};
-    }
-    // TODO: handle type aliases 
-    auto const& type = *type_decl.type;
-    auto id = m_types.add_symbol(type_decl);
-    m_current_scope->add_symbol(
-        type_decl.name, 
+    auto const id = m_types.id_to_be();
+    m_current_scope->add_symbol(type_decl.name, 
         symbol{
             .id = fed::strip(id),
-            .type = symbol_type::type, 
-        }
-    );
-    // enum members are treated like constants 
-    if (auto enum_type_ptr = std::get_if<ast::enumerated_type>(&type)) {
-        auto const& enum_type = *enum_type_ptr;
-        auto i = int(0);
-        for (auto const& enum_member : enum_type.enum_members) {
-            m_constants_blob.push_back(ast::constant_declaration{
-                .name = enum_member,
-                .constant = ast::constant(ast::enum_constant{
-                    .type = type_decl.type,
-                    .ord_value = i++,
-                })
-            });
-            auto is_success = add_constant(m_constants_blob.back());
-            if (not is_success) {
-                return is_success;
-            }
-        }
-    }
+            .type = symbol_type::type,
+    });  
+    m_types.add_symbol(std::move(type_decl));   
     return {};
 }
 
-auto semantic_context::add_constant(ast::constant_declaration const& const_decl)
+auto semantic_context::add_constant(ast::constant_declaration const_decl)
     -> semantic_result<void> { 
     if (not m_current_scope->is_free_real_estate(const_decl.name)) {
         return std::unexpected(contextual_error());
     }
-    auto id = m_constants.add_symbol(const_decl);
-    m_current_scope->add_symbol(
-        const_decl.name,
+    auto const id = m_constants.id_to_be();
+    m_current_scope->add_symbol(const_decl.name, 
         symbol{
             .id = fed::strip(id),
             .type = symbol_type::constant,
-        }
-    );
+    });  
+    m_constants.add_symbol(std::move(const_decl));
+
     return {};
+}
+auto semantic_context::add_variable(ast::variable_declaration var_decl)
+    -> semantic_result<void> {
+    if (not m_current_scope->is_free_real_estate(var_decl.name)) {
+        return std::unexpected(contextual_error());
+    }
+    auto const id = m_variables.id_to_be();
+    m_current_scope->add_symbol(var_decl.name, 
+        symbol{
+            .id = fed::strip(id),
+            .type = symbol_type::variable,
+    });  
+    m_variables.add_symbol(std::move(var_decl));
+    
+    return {};   
+}
+
+auto semantic_context::synthesize_dummy_expression() const
+    -> ast::expression {
+    return ast::constant_name{
+        .type = type_from_id(type_id::poison),
+        .id   = constant_id::poison,
+    };
+}
+
+auto semantic_context::get_integer_id() const
+    -> type_id {
+    return static_cast<type_id>(1);
 }
 
 namespace {
@@ -304,6 +300,7 @@ auto semantic_context::type_from_id(variable_id id) const
 }
 auto semantic_context::type_from_id(constant_id id) const
     -> type_observer {
+    fmt::println("bad id:{}", std::to_underlying(id));
     return get_ast_node(id).and_then(
         [&](ast::constant_declaration const& decl) -> type_observer { 
             return get_constant_type(decl.constant);

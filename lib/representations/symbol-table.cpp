@@ -2,6 +2,8 @@
 #include <optional>
 #include <string_view>
 #include <variant>
+#include <fmt/std.h>
+#include <fmt/ranges.h>
 
 
 namespace fed {
@@ -15,11 +17,13 @@ auto scope::lookup(std::string_view name) const
 }
 auto scope::add_symbol(std::string_view name, symbol sym)
     -> iterator {
-    return m_table.insert({std::string(name), sym}).first;
+    auto res = m_table.insert({std::string(name), sym});
+    
+    return res.first;
 }
 auto scope::is_free_real_estate(std::string_view name) const
     -> bool {
-    return m_table.contains(name);
+    return not m_table.contains(name);
 }
 
 
