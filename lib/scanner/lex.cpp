@@ -3,7 +3,7 @@
 #include "fed/representations/raw-source.hpp"
 #include "fed/scanner/lexer_error.hpp"
 #include "fed/scanner/token.hpp"
-#include "fed/utils/superutil.hpp"
+#include "fed/utils/predicates.hpp"
 #include "fed/diagnostics/internal-error.hpp"
 
 
@@ -87,7 +87,7 @@ auto lexer::lex_as_word() noexcept
     auto result = token_view();
     auto const start = m_cursor;
 
-    auto is_valid_identifier_symbol = func::any_of(
+    auto is_valid_identifier_symbol = any_of(
             "abcdefghijklmnopqrstuvwxyz"
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             "1234567890"sv
@@ -227,7 +227,7 @@ auto lexer::lex_next_token() noexcept
     // skip whitespaces etc
     m_cursor = stdr::find_if(
         m_cursor, m_source.end(), 
-        func::no(func::any_of("\t \n"sv))
+        not any_of("\t \n"sv)
     );
 
     if (m_cursor == m_source.end()) {

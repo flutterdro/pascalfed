@@ -32,7 +32,7 @@ auto parser::parse_expression()
         // return parse_expression(std::move(lhs), precedence::lowest);
         return lhs;
     }
-    if (func::any_of(std::array{
+    if (any_of(std::array{
         token_type::plus,
         token_type::minus,
         token_type::keyword_not,
@@ -76,7 +76,7 @@ auto parser::parse_unary_expression()
     };
 }
 inline constexpr auto is_binary_operator = [](token_type type) {
-    return func::any_of(std::array{
+    return any_of(std::array{
             token_type::plus,
             token_type::minus,
             token_type::star,
@@ -283,8 +283,8 @@ auto parser::parse_call(ast::expression base)
             caller_args_types.push_back(poison_pill);
             caller_args.push_back(poison_pill);
         }
-        if (current_token_is(not func::any_of(soft_terminators))) {
-             advance_until(func::any_of(hard_terminators));
+        if (current_token_is(not any_of(soft_terminators))) {
+             advance_until(any_of(hard_terminators));
         }
         if (current_token().type() == token_type::comma) {
             consume_and_advance();
@@ -335,7 +335,7 @@ auto parser::parse_indexing(ast::expression base)
             index_args_types.push_back(poison_pill);
             index_args.push_back(poison_pill);
         }
-        if (current_token_is(not func::any_of(std::array{comma, r_square, semicolon}))) {
+        if (current_token_is(not any_of(std::array{comma, r_square, semicolon}))) {
             // TODO: error recovery
         }
         if (current_token().type() == token_type::comma) {

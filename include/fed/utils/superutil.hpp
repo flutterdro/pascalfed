@@ -7,9 +7,7 @@
 
 #include <fmt/core.h>
 
-#define FWD(expr) std::forward<decltype(expr)>(expr)
-#define LIFT(func) [](auto&&... xs) { return func(FWD(xs)...); }
-#define LIFT_MEMBER(func) [this](auto&&... xs) { return this->func(FWD(xs)...); }
+#include "fed/utils/macros.hpp"
 
 class indentable {
 public:
@@ -101,43 +99,10 @@ inline constexpr auto psie_combinator = [](auto&& f, auto&& g) {
 };
 
 namespace stdr = std::ranges;
-constexpr auto equal_to(auto&& value) noexcept {
-    return [=](auto&& other) {
-        return other == value;
-    };
-}
-
-template<std::ranges::range R>
-constexpr auto any_of(R&& collection) noexcept {
-    return [collection_ = std::forward<R>(collection)](auto&& element) {
-        return stdr::any_of(collection_, func::equal_to(element));
-    };
-}
-constexpr auto no(auto&& func) {
-    return [func_ = std::forward<decltype(func)>(func)](auto&&... args) -> bool {
-        return not func_(std::forward<decltype(args)>(args)...);
-    };
-}
 struct static_any {
     template<typename T>
     constexpr operator T() {}
 };
-constexpr auto operator or(auto&& lhs, auto&& rhs) {
-    return [_lhs = FWD(lhs), _rhs = FWD(rhs)](auto&& val) {
-        return _lhs(val) or _rhs(val);
-    };
-}
-constexpr auto operator and(auto&& lhs, auto&& rhs) {
-    return [_lhs = FWD(lhs), _rhs = FWD(rhs)](auto&& val) {
-        return _lhs(val) and _rhs(val);
-    };
-}
-
-constexpr auto operator not(auto&& rhs) {
-    return [_rhs = FWD(rhs)](auto&& val) {
-        return not _rhs(val);
-    };
-}
 
 } // namespace func
 

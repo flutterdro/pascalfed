@@ -9,6 +9,7 @@
 #include "fed/representations/parse-tree.hpp"
 #include "fed/parser/parse_error.hpp"
 #include "fed/scanner/token.hpp"
+#include "fed/utils/predicates.hpp"
 
 #include <concepts>
 #include <expected>
@@ -153,13 +154,13 @@ private:
 
 inline auto parser::advance_until(std::predicate<token_type> auto&& predicate)
     -> void {
-    while (not (predicate and func::equal_to(token_type::eof))(current_token().type())) {
+    while (not (predicate and equal_to(token_type::eof))(current_token().type())) {
         consume_and_advance();
     }
 }
-inline auto parser::consume_and_advance_expecting(std::predicate<token_type> auto&& func)
+inline auto parser::consume_and_advance_expecting(std::predicate<token_type> auto&& pred)
     -> void {
-    if (func(current_token().type())) {
+    if (pred(current_token().type())) {
         consume_and_advance();
         return;
     } else {
