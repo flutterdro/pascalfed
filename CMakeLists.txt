@@ -15,7 +15,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Darwin"
         AND CMAKE_CXX_COMPILER_ID MATCHES "Clang"
         AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 18)
     link_libraries(/opt/homebrew/opt/llvm/lib/unwind/libunwind.dylib)
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/opt/homebrew/opt/llvm/lib/c++")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/opt/homebrew/opt/llvm/lib/c++  -Wl,-rpath,/opt/homebrew/opt/llvm/lib/c++")
 endif()
 
 option(FED_BUILD_TESTS "Build tests" ON)

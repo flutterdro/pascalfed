@@ -1,6 +1,6 @@
 #include "fed/parser/context.hpp"
 #include "fed/parser/semantic-error.hpp"
-#include "fed/representations/parse-tree.hpp"
+#include "fed/representations/ast.hpp"
 #include "fed/representations/symbol-table.hpp"
 #include "fed/utils/superutil.hpp"
 #include <__expected/unexpected.h>
@@ -333,7 +333,7 @@ auto semantic_context::get_expression_type(ast::observer_handle<ast::expression_
 auto semantic_context::get_expression_type(ast::expression_leaf const& exp) const 
     -> type_observer {
     return std::visit(overloaded{
-            [&](ast::bare_name const& name) { 
+            [&](ast::expression_atom const& name) { 
                 return std::visit(overloaded{
                     [](auto const& name_) { return name_.type; },
                     [&](ast::constant const& name_) { return get_constant_type(name_); }

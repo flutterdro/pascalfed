@@ -9,6 +9,8 @@
 
 #include "fed/utils/macros.hpp"
 
+
+
 class indentable {
 public:
     constexpr indentable() 
@@ -38,6 +40,37 @@ private:
 };
 
 namespace fed {
+
+inline constexpr struct poison_t {} poison_pill;
+inline constexpr struct consumed_t {} consumed;
+
+template<typename T>
+concept poisonable = requires { T(poison_pill); };
+
+template<typename T>
+struct default_recipe {
+    static constexpr auto operator()() noexcept(noexcept(T())) { return T(); }
+};
+// very very thin wrapper around T.
+// the only thing that changes is that it allows to treat a type as poisonable.
+// in case of construction from poison_pill it "concotes an antidote",
+// which in reality is some value(by default it is just a default constructed one).
+// you can provide your own value via Recipe template parameter
+template<typename T, typename Recipe = default_recipe<T>>
+struct antidote {
+    constexpr antidote(poison_t) 
+        : data(Recipe()()) {}
+    template<std::convertible_to<T> U>
+    constexpr antidote(U&& val) 
+        : data(FWD(val)) {}
+
+    operator T& ()             &  { return data; }
+    operator T const& ()  const&  { return data; }
+    operator T&& ()            && { return std::move(data); }
+    operator T const&& () const&& { return std::move(data); }
+
+    T data;
+};
 
 struct non_copyable { 
     constexpr non_copyable(non_copyable const&) = delete;

@@ -1,7 +1,9 @@
 #ifndef FED_SEMANTIC_CONTEXT_HPP_
 #define FED_SEMANTIC_CONTEXT_HPP_
 
-#include "fed/representations/parse-tree.hpp"
+#include "fed/representations/ast/forward.hpp"
+#include "fed/representations/ast/handle.hpp"
+#include "fed/representations/ast.hpp"
 #include "fed/representations/symbol-table.hpp"
 #include "fed/parser/semantic-error.hpp"
 #include <expected>

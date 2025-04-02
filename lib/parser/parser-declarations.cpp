@@ -1,7 +1,7 @@
 #include "fed/parser/parser.hpp"
 #include "fed/diagnostics/internal-error.hpp"
 #include "fed/parser/parse_error.hpp"
-#include "fed/representations/parse-tree.hpp"
+#include "fed/representations/ast.hpp"
 #include "fed/scanner/token.hpp"
 #include "fed/utils/superutil.hpp"
 #include "fed/diagnostics/buffer.hpp"

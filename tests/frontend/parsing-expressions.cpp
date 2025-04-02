@@ -2,7 +2,8 @@
 #include "fed/diagnostics/internal-error.hpp"
 #include "fed/parser/context.hpp"
 #include "fed/parser/parser.hpp"
-#include "fed/representations/parse-tree.hpp"
+#include "fed/representations/ast.hpp"
+#include "fed/representations/ast/pretty-print.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/utils/superutil.hpp"
 
@@ -45,20 +46,20 @@ auto operator==(
     fed::ast::unary_expression const& rhs
 ) -> bool;
 auto operator==(
-    fed::ast::indexed_variable const& lhs,
-    fed::ast::indexed_variable const& rhs
+    fed::ast::indexed_expression const& lhs,
+    fed::ast::indexed_expression const& rhs
 ) -> bool;
 auto operator==(
-    fed::ast::called_variable const& lhs,
-    fed::ast::called_variable const& rhs
+    fed::ast::called_expression const& lhs,
+    fed::ast::called_expression const& rhs
 ) -> bool;
 auto operator==(
-    fed::ast::dereferenced_variable const& lhs,
-    fed::ast::dereferenced_variable const& rhs
+    fed::ast::dereferenced_expression const& lhs,
+    fed::ast::dereferenced_expression const& rhs
 ) -> bool;
 auto operator==(
-    fed::ast::membered_variable const& lhs,
-    fed::ast::membered_variable const& rhs
+    fed::ast::membered_expression const& lhs,
+    fed::ast::membered_expression const& rhs
 ) -> bool;
 auto operator==(
     fed::ast::function_name const& lhs,
@@ -146,20 +147,20 @@ auto operator==(
     return false;
 }
 auto operator==(
-    fed::ast::indexed_variable const& lhs,
-    fed::ast::indexed_variable const& rhs
+    fed::ast::indexed_expression const& lhs,
+    fed::ast::indexed_expression const& rhs
 ) -> bool {
     return false;
 }
 auto operator==(
-    fed::ast::called_variable const& lhs,
-    fed::ast::called_variable const& rhs
+    fed::ast::called_expression const& lhs,
+    fed::ast::called_expression const& rhs
 ) -> bool {
     return false;
 }
 auto operator==(
-    fed::ast::membered_variable const& lhs,
-    fed::ast::membered_variable const& rhs
+    fed::ast::membered_expression const& lhs,
+    fed::ast::membered_expression const& rhs
 ) -> bool {
     return false;
 }
@@ -206,8 +207,8 @@ auto operator==(
     return false;
 }
 auto operator==(
-    dereferenced_variable const&, 
-    dereferenced_variable const&
+    dereferenced_expression const&, 
+    dereferenced_expression const&
 ) -> bool {
     return false;
 }

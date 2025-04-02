@@ -6,13 +6,14 @@
 #include "fed/parser/context.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/scanner/lex.hpp"
-#include "fed/representations/parse-tree.hpp"
+#include "fed/representations/ast.hpp"
 #include "fed/parser/parse_error.hpp"
 #include "fed/scanner/token.hpp"
 #include "fed/utils/predicates.hpp"
 
 #include <concepts>
 #include <expected>
+#include <initializer_list>
 #include <variant>
 
 namespace fed {
@@ -60,6 +61,17 @@ public:
     // every parse function has a contract
     // they must advance lexer to the next token 
     // after parsed source
+    
+    struct parse_parameters {
+        token_type                        separator = token_type::comma;
+        std::initializer_list<token_type> success_terminators = {token_type::eof};
+        std::initializer_list<token_type> hazard_terminators  = {token_type::eof};
+    };
+    template<typename F>
+    using get_parse_invoke_t = std::invoke_result_t<F, parser>::value_type;
+    template<typename F>
+    auto parse_many(F&&, parse_parameters const&)
+        -> ast::group<ast::handle<get_parse_invoke_t<F>>>; 
 
     auto parse_program() 
         -> parse_result<ast::handle<ast::program>>; 
@@ -128,7 +140,7 @@ public:
 
 private:
     auto determine_name_type(ast::identifier_view)
-        -> ast::bare_name;
+        -> ast::expression_atom;
     auto parse_expression_leaf(ast::expression)
         -> parse_result<ast::expression>;
     auto parse_call(ast::expression)
@@ -167,7 +179,44 @@ inline auto parser::consume_and_advance_expecting(std::predicate<token_type> aut
         push_error(parse_error());
     }
 }
+
+template<typename F>
+auto parser::parse_many(F&& parse_func, parse_parameters const& tokens)
+    -> ast::group<ast::handle<get_parse_invoke_t<F>>> {
+    auto result = ast::group<ast::handle<get_parse_invoke_t<F>>>();
+    // TODO: handle empty case
+    while (true) {
+        result.push_back(
+            std::invoke(FWD(parse_func), *this)
+                .transform_error(LIFT_MEMBER(push_error))
+                .value_or(poison_pill)
+        );
+        auto in_need_of_recovery = not (
+            equal_to(tokens.separator) or
+            any_of(tokens.success_terminators) or 
+            any_of(tokens.hazard_terminators) 
+        );
+        if (current_token_is(in_need_of_recovery)) {
+            // unexpected tokens
+            push_error(parse_error());
+            advance_until(not in_need_of_recovery);
+        }
+        if (current_token_is(any_of(tokens.success_terminators))) {
+            break;
+        }
+        if (current_token_is(any_of(tokens.hazard_terminators))) {
+            // missin terminator 
+            push_error(parse_error());
+            break;
+        }
+        if (current_token_is(equal_to(tokens.separator))) {
+            continue;
+        }
+    }
+
+} 
 } // namespace fed
+
 
 
 

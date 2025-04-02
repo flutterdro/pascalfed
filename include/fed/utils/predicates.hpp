@@ -16,6 +16,9 @@ inline constexpr auto any_of = [](stdr::range auto&& range) {
         return stdr::any_of(range_, equal_to(FWD(val)));
     };
 };
+// technicall could be implemented as 
+// inline constexpr auto none_of = not any_of;
+// lmao
 inline constexpr auto none_of = [](stdr::range auto&& range) {
     return [range_ = FWD(range)](auto&& val) {
         return stdr::none_of(range_, equal_to(FWD(val)));

@@ -1,6 +1,6 @@
 #include "fed/parser/context.hpp"
 #include "fed/parser/parser.hpp"
-#include "fed/representations/parse-tree.hpp"
+#include "fed/representations/ast.hpp"
 #include "fed/scanner/token.hpp"
 #include "fed/utils/superutil.hpp"
 #include <fmt/std.h>
@@ -253,7 +253,7 @@ auto parser::parse_dereferencing(ast::expression base)
         }
     }();
     return parser::parse_expression_leaf(
-        ast::dereferenced_variable{
+        ast::dereferenced_expression{
             .type = expression_type,
             .ptr  = std::move(base_handle),
         }
@@ -311,7 +311,7 @@ auto parser::parse_call(ast::expression base)
         })
         .value_or(poison_pill);
     
-    return ast::called_variable{
+    return ast::called_expression{
         .type      = return_type,
         .callable  = std::move(base_handle),
         .arguments = std::move(caller_args),
@@ -363,7 +363,7 @@ auto parser::parse_indexing(ast::expression base)
         })
         .value_or(poison_pill);
     
-    return ast::indexed_variable{
+    return ast::indexed_expression{
         .type     = return_type,
         .array    = std::move(base_handle),
         .indecies = std::move(index_args),
@@ -392,7 +392,7 @@ auto parser::parse_member_access(ast::expression base)
         }
     }();
 
-    return ast::membered_variable{
+    return ast::membered_expression{
         .type   = member_type,
         .object = std::move(base_handle),
         .member = name,
@@ -400,9 +400,9 @@ auto parser::parse_member_access(ast::expression base)
 }
 
 auto parser::determine_name_type(ast::identifier_view name)
-    -> ast::bare_name {
+    -> ast::expression_atom {
     auto bundle_up = [=, this](auto id) {
-        return ast::bare_name(
+        return ast::expression_atom(
             std::in_place_type<ast::name_from_id_t<decltype(id)>>,
             context().type_from_id(id), id
         );
@@ -415,7 +415,7 @@ auto parser::determine_name_type(ast::identifier_view name)
     auto try_guess_constant = [&, this]() {
          return context()
             .try_get_constant_id(name)
-            .transform([&](auto const id) -> ast::bare_name {
+            .transform([&](auto const id) -> ast::expression_atom {
                 return ast::constant(
                     std::in_place_type<ast::constant_name>,
                     context().type_from_id(id), id
