@@ -140,8 +140,9 @@ struct type_matcher {
         ast::observer_handle<ast::type> type1,
         ast::observer_handle<ast::type> type2
     ) const -> semantic_result<void> {
-        if (type1.is_poisoned() or type2.is_poisoned()) return {};
-        return (*this)(type1.unsafe_value(), type2.unsafe_value());
+        // if (type1.is_poisoned() or type2.is_poisoned()) return {};
+        return then_all(cure(*this), type1, type2);
+        // return (*this)(type1.unsafe_value(), type2.unsafe_value());
     }
 
     auto operator()(ast::type const& type1, ast::type const& type2) const

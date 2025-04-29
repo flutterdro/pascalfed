@@ -129,7 +129,7 @@ public:
         -> parse_result<ast::handle<ast::procedure_heading>>;
 
 
-    auto parse_expression()
+    auto parse_expression(precedence::level = precedence::lowest)
         -> parse_result<ast::expression>;
     auto parse_binary_expression()
         -> parse_result<ast::binary_expression>;
@@ -156,13 +156,17 @@ private:
     auto parse_lhs(precedence::level threshold)
         -> parse_result<ast::expression>;
     auto parse_rhs(ast::expression lhs, precedence::level threshold)
-        -> parse_result<ast::binary_expression>;
+        -> parse_result<ast::expression>;
 private:
     lexer m_lexer;
     diagnostics_buffer& m_diagnostics;
     semantic_context m_context;
 };
 
+constexpr auto up(parser::precedence::level lvl) noexcept
+    -> parser::precedence::level {
+    return static_cast<parser::precedence::level>(lvl+1);
+}
 
 inline auto parser::advance_until(std::predicate<token_type> auto&& predicate)
     -> void {

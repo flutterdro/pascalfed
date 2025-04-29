@@ -91,20 +91,20 @@ public:
     constexpr observer_handle(poison_t) noexcept 
         : m_handle(nullptr) {}
     
-    observer_handle(T const* ptr)
+    constexpr observer_handle(T const* ptr)
         : m_handle(ptr) {
         if (ptr == nullptr) throw internal_error("observer_handle cannot be constructed from nullptr");
     }
-    observer_handle(T const& val)
+    constexpr observer_handle(T const& val)
         : m_handle(std::addressof(val)) {}
     observer_handle(nullptr_t) = delete;
-    observer_handle(handle<T> const& handle)
+    constexpr observer_handle(handle<T> const& handle)
         : m_handle(handle.m_handle.get()) {}
-    observer_handle(observer_handle const&) noexcept = default;
-    auto operator=(observer_handle const&) noexcept
+    constexpr observer_handle(observer_handle const&) noexcept = default;
+    constexpr auto operator=(observer_handle const&) noexcept
         -> observer_handle& = default;
-    observer_handle(observer_handle&&) noexcept = default;
-    auto operator=(observer_handle&&) noexcept
+    constexpr observer_handle(observer_handle&&) noexcept = default;
+    constexpr auto operator=(observer_handle&&) noexcept
         -> observer_handle& = default;
     auto is_poisoned() const noexcept
         -> bool { return m_handle == nullptr; }

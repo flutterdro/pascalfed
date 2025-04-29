@@ -84,6 +84,15 @@ struct non_movable {
         -> non_movable& = delete;
 };
 
+// helper to wrap callable with antidote, but only with default recipe
+inline constexpr auto cure = [](auto&& f) {
+    return [f_ = FWD(f)](auto&&... xs) { 
+        return antidote<
+            std::invoke_result_t<decltype(f), decltype(xs)...>
+        >(f_(FWD(xs)...)); 
+    };
+};
+
 template<typename... Ts>
 struct overloaded : Ts... {
     using Ts::operator()...;

@@ -1,6 +1,7 @@
 #include "fed/parser/context.hpp"
 #include "fed/parser/parser.hpp"
 #include "fed/representations/ast.hpp"
+#include "fed/representations/ast/nodes.hpp"
 #include "fed/scanner/token.hpp"
 #include "fed/utils/superutil.hpp"
 #include <fmt/std.h>
@@ -19,9 +20,30 @@ if (opt.has_value()) return std::unexpected{std::move(*opt)};
 
 
 namespace fed {
+inline constexpr auto token_to_operation = [](token_type type) {
+    switch (type) {
+        using enum token_type;
+        case plus:                  return ast::binary_operation::add;
+        case minus:                 return ast::binary_operation::substract;
+        case star:                  return ast::binary_operation::multiply;
+        case slash:                 return ast::binary_operation::real_divide;
+        case keyword_div:           return ast::binary_operation::integer_divide;
+        case keyword_mod:           return ast::binary_operation::modulo;
+        case keyword_or:            return ast::binary_operation::or_;
+        case keyword_and:           return ast::binary_operation::and_;
+        case keyword_in:            return ast::binary_operation::in;
+        case less_than:             return ast::binary_operation::less;
+        case greater_than:          return ast::binary_operation::greater;
+        case not_equal:             return ast::binary_operation::not_equal;
+        case equal:                 return ast::binary_operation::equal;
+        case less_or_equal_than:    return ast::binary_operation::less_or_equal;
+        case greater_or_equal_than: return ast::binary_operation::greater_or_equal;
+        default: std::unreachable();
+    }
+};
 
 using ast::handle;
-auto parser::parse_expression()
+auto parser::parse_expression(precedence::level threshold)
     -> parse_result<ast::expression> {
     if (current_token().type() == token_type::l_paren) {
         consume_and_advance();
@@ -32,18 +54,16 @@ auto parser::parse_expression()
         // return parse_expression(std::move(lhs), precedence::lowest);
         return lhs;
     }
-    if (any_of(std::array{
-        token_type::plus,
-        token_type::minus,
-        token_type::keyword_not,
-    })(current_token().type())) { return parse_unary_expression(); }
-
-    auto lhs = parse_expression_leaf()
+    auto lhs = 
+        (threshold < precedence::highest ? 
+            parse_expression(up(threshold)) :
+            parse_expression_leaf())
         .transform_error(LIFT_MEMBER(push_error))
         .value_or(context().synthesize_dummy_expression());
-
-    return parse_expression(std::move(lhs), precedence::lowest);
-
+    auto is_unary_operator = any_of(std::array{
+        token_type::plus, token_type::minus, token_type::keyword_not
+    });
+    return parse_rhs(std::move(lhs), threshold);
 }
 
 auto parser::parse_unary_expression()
@@ -141,57 +161,49 @@ auto parser::parse_expression(ast::expression lhs, precedence::level threshold)
 
 
 auto parser::parse_rhs(ast::expression lhs, precedence::level threshold) 
-    -> parse_result<ast::binary_expression> {
-    auto token_to_operation = [](token_type type) {
-        switch (type) {
-            using enum token_type;
-            case plus:                  return ast::binary_operation::add;
-            case minus:                 return ast::binary_operation::substract;
-            case star:                  return ast::binary_operation::multiply;
-            case slash:                 return ast::binary_operation::real_divide;
-            case keyword_div:           return ast::binary_operation::integer_divide;
-            case keyword_mod:           return ast::binary_operation::modulo;
-            case keyword_or:            return ast::binary_operation::or_;
-            case keyword_and:           return ast::binary_operation::and_;
-            case keyword_in:            return ast::binary_operation::in;
-            case less_than:             return ast::binary_operation::less;
-            case greater_than:          return ast::binary_operation::greater;
-            case not_equal:             return ast::binary_operation::not_equal;
-            case equal:                 return ast::binary_operation::equal;
-            case less_or_equal_than:    return ast::binary_operation::less_or_equal;
-            case greater_or_equal_than: return ast::binary_operation::greater_or_equal;
-            default: std::unreachable();
-        }
-    };
-
-    if (not is_binary_operator(current_token().type())) { 
-        return std::unexpected(parse_error());
+    -> parse_result<ast::expression> {
+    
+    if (current_token_is(not is_binary_operator)) { 
+        return lhs;
+    }
+    auto op_precedence   = binary_operator_precedence(current_token().type());
+    if (op_precedence < threshold) {
+        return lhs;
     }
     auto operation_token = consume_and_advance().type();
-    auto rhs = [&] -> ast::expression {
-        if (current_token().type() == token_type::l_paren) {
-            return parse_expression()
-                .transform_error(LIFT_MEMBER(push_error))
-                .value_or(context().synthesize_dummy_expression());
-        } else {
-            auto rhs = parse_expression_leaf()
-                .transform_error(LIFT_MEMBER(push_error))
-                .value_or(context().synthesize_dummy_expression());
-            if (auto tok = current_token().type();
-                is_binary_operator(tok) and binary_operator_precedence(tok)  > threshold) {
-                return parse_expression(std::move(rhs), threshold)
-                    .transform_error(LIFT_MEMBER(push_error))
-                    .value_or(context().synthesize_dummy_expression());
-            }
-            return rhs;
-        }
-    }();
-    return ast::binary_expression{
-        .type      = poison_pill,
-        .lhs       = std::move(lhs),
-        .rhs       = std::move(rhs),
+    auto rhs = parse_expression(up(op_precedence))
+            .transform_error(LIFT_MEMBER(push_error))
+            .value_or(context().synthesize_dummy_expression());
+   return parse_rhs(ast::binary_expression{
+        .type = poison_pill,
+        .lhs  = std::move(lhs),
+        .rhs  = std::move(rhs),
         .operation = token_to_operation(operation_token),
-    };
+    }, op_precedence);
+    // auto rhs = [&] -> ast::expression {
+    //     if (current_token().type() == token_type::l_paren) {
+    //         return parse_expression()
+    //             .transform_error(LIFT_MEMBER(push_error))
+    //             .value_or(context().synthesize_dummy_expression());
+    //     } else {
+    //         auto rhs = parse_expression_leaf()
+    //             .transform_error(LIFT_MEMBER(push_error))
+    //             .value_or(context().synthesize_dummy_expression());
+    //         if (auto tok = current_token().type();
+    //             is_binary_operator(tok) and binary_operator_precedence(tok) >= threshold) {
+    //             return parse_expression(std::move(rhs), threshold)
+    //                 .transform_error(LIFT_MEMBER(push_error))
+    //                 .value_or(context().synthesize_dummy_expression());
+    //         }
+    //         return rhs;
+    //     }
+    // }();
+    // return ast::binary_expression{
+    //     .type      = poison_pill,
+    //     .lhs       = std::move(lhs),
+    //     .rhs       = std::move(rhs),
+    //     .operation = token_to_operation(operation_token),
+    // };
 }
 
 auto parser::parse_expression_leaf() 
