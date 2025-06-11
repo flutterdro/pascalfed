@@ -3,6 +3,7 @@
 
 #include <fmt/core.h>
 
+#include "fed/representations/ast/nodes.hpp"
 #include "fed/utils/superutil.hpp"
 #include "fed/representations/ast/forward.hpp"
 
@@ -121,6 +122,138 @@ struct fmt::formatter<fed::ast::constant> : indentable {
     }
     auto format(
         fed::ast::constant const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::type> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::type const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::type_identifier> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::type_identifier const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::pointer_type> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::pointer_type const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::array_type> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::array_type const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::function_type> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::function_type const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::subrange_type> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::subrange_type const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::enumerated_type> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::enumerated_type const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::record_type> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::record_type const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::procedure_type> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::procedure_type const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::type_builtin> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::type_builtin const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::set_type> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::set_type const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::file_type> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::file_type const& exp, 
         fmt::format_context& ctx
     ) const -> fmt::format_context::iterator;
 };

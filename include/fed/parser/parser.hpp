@@ -4,6 +4,7 @@
 #include "fed/diagnostics/buffer.hpp"
 #include "fed/diagnostics/compile-error.hpp"
 #include "fed/parser/context.hpp"
+#include "fed/representations/ast/nodes.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/scanner/lex.hpp"
 #include "fed/representations/ast.hpp"
@@ -13,6 +14,7 @@
 
 #include <concepts>
 #include <expected>
+#include <fmt/base.h>
 #include <initializer_list>
 #include <variant>
 
@@ -35,10 +37,13 @@ public:
 public: 
     explicit parser(source::full_view, semantic_context, diagnostics_buffer&);
 
+    auto remount(source::full_view)
+        -> void;
+
     auto consume_and_advance()
         -> token_view;
     auto consume_and_advance_expecting(token_type token)
-        -> void;
+        -> parse_result<void>;
     auto advance_until(std::predicate<token_type> auto&& func)
         -> void;
     auto consume_and_advance_expecting(std::predicate<token_type> auto&& func)
@@ -74,38 +79,40 @@ public:
         -> ast::group<ast::handle<get_parse_invoke_t<F>>>; 
 
     auto parse_program() 
-        -> parse_result<ast::handle<ast::program>>; 
+        -> parse_result<ast::program>; 
     auto parse_program_heading()
         -> parse_result<ast::handle<ast::program_heading>>;
     auto parse_block()
         -> parse_result<ast::handle<ast::block>>;
 
     auto parse_type_definition()
-        -> parse_result<ast::handle<ast::type_declaration>>;
+        -> parse_result<ast::type_declaration>;
     auto parse_variable_declaration()
-        -> parse_result<ast::handle<ast::variable_declaration>>;
+        -> parse_result<ast::variable_declaration>;
     auto parse_type()
-        -> parse_result<ast::handle<ast::type>>;
+        -> parse_result<ast::type>;
+    auto parse_type_identifier()
+        -> parse_result<ast::type_identifier>;
+    auto parse_pointer_type()
+        -> parse_result<ast::pointer_type>;
     auto parse_enumerated_type()
-        -> parse_result<ast::handle<ast::enumerated_type>>;
+        -> parse_result<ast::enumerated_type>;
     auto parse_subrange_type()
-        -> parse_result<ast::handle<ast::subrange_type>>;
+        -> parse_result<ast::subrange_type>;
     auto parse_array_type()
-        -> parse_result<ast::handle<ast::array_type>>;
+        -> parse_result<ast::array_type>;
+    auto parse_function_type()
+        -> parse_result<ast::function_type>;
+    auto parse_argument()
+        -> parse_result<ast::argument>;
     auto parse_set_type()
-        -> parse_result<ast::handle<ast::set_type>>;
+        -> parse_result<ast::set_type>;
     auto parse_file_type()
-        -> parse_result<ast::handle<ast::file_type>>;
+        -> parse_result<ast::file_type>;
     auto parse_record_type()
-        -> parse_result<ast::handle<ast::record_type>>;
-    auto parse_field_list()
-        -> parse_result<ast::handle<ast::record_type>>;
-    auto parse_fixed_field()
-        -> parse_result<ast::handle<ast::fixed_fields>>;
-    auto parse_variant_part()
-        -> parse_result<ast::handle<ast::variant_field>>;
-    auto parse_variant()
-        -> parse_result<ast::handle<ast::variant_part>>;
+        -> parse_result<ast::record_type>;
+    auto parse_fixed_part()
+        -> parse_result<ast::fixed_part>;
 
     auto parse_constant()
         -> parse_result<ast::handle<ast::constant>>;
@@ -137,6 +144,11 @@ public:
         -> parse_result<ast::unary_expression>;
     auto parse_expression_leaf()
         -> parse_result<ast::expression>;
+
+    auto parse_integer()
+        -> parse_result<ast::integer_literal>;
+    auto parse_real()
+        -> parse_result<ast::real_literal>;
 
 private:
     auto determine_name_type(ast::identifier_view)
@@ -193,18 +205,19 @@ auto parser::parse_many(F&& parse_func, parse_parameters const& tokens)
         result.push_back(
             std::invoke(FWD(parse_func), *this)
                 .transform_error(LIFT_MEMBER(push_error))
+                .transform(construct<ast::handle<get_parse_invoke_t<F>>>)
                 .value_or(poison_pill)
         );
-        auto in_need_of_recovery = not (
-            equal_to(tokens.separator) or
-            any_of(tokens.success_terminators) or 
-            any_of(tokens.hazard_terminators) 
-        );
-        if (current_token_is(in_need_of_recovery)) {
-            // unexpected tokens
-            push_error(parse_error());
-            advance_until(not in_need_of_recovery);
-        }
+        // auto in_need_of_recovery = not (
+        //     equal_to(tokens.separator) or
+        //     any_of(tokens.success_terminators) or 
+        //     any_of(tokens.hazard_terminators) 
+        // );
+        // if (current_token_is(in_need_of_recovery)) {
+        //     // unexpected tokens
+        //     push_error(parse_error());
+        //     advance_until(not in_need_of_recovery);
+        // }
         if (current_token_is(any_of(tokens.success_terminators))) {
             break;
         }
@@ -214,10 +227,12 @@ auto parser::parse_many(F&& parse_func, parse_parameters const& tokens)
             break;
         }
         if (current_token_is(equal_to(tokens.separator))) {
+            consume_and_advance();
             continue;
         }
     }
 
+    return result;
 } 
 } // namespace fed
 

@@ -79,7 +79,8 @@ public:
     using iterator = source::iterator;
     using sentinel = std::string_view::iterator;
 
-    full_view(underlying_view_t view);
+    constexpr full_view(underlying_view_t view)
+        : m_view(view) {}
 
     auto begin() const noexcept
         -> iterator;

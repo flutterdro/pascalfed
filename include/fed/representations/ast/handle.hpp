@@ -19,6 +19,9 @@ public:
         : m_handle(nullptr) {}
     handle(T&& val)
         : m_handle(std::make_unique<T>(std::move(val))) {}
+    template<typename... Us>
+    handle(Us&&... args)
+        : m_handle(std::make_unique<T>(FWD(args)...)) {}
     handle(handle const&) = delete;
     handle(handle&&) noexcept = default;
     template<typename U>
@@ -78,6 +81,13 @@ public:
         -> void { m_handle = nullptr; }
     auto is_poisoned() const
         -> bool { return m_handle == nullptr; }
+
+    constexpr auto operator==(handle const& other) const noexcept
+        -> bool {
+        if (is_poisoned() and other.is_poisoned()) return true;
+        if (is_poisoned() or other.is_poisoned()) return false;
+        return *m_handle == *other.m_handle;
+    }
 private:
     std::unique_ptr<T> m_handle{};
 
@@ -120,6 +130,14 @@ public:
 
     auto unsafe_value() const noexcept 
         -> T const& { return *m_handle; }
+
+    constexpr auto operator==(observer_handle const& other) const noexcept
+        -> bool {
+        if (is_poisoned() and other.is_poisoned()) return true;
+        if (is_poisoned() or other.is_poisoned()) return false;
+        return *m_handle == *other.m_handle;
+    }
+
 
 private:
     T const* m_handle;

@@ -2,6 +2,7 @@
 #define FED_COMILATION_ERROR_HPP_
 
 #include "fed/representations/raw-source.hpp"
+#include "fed/utils/macros.hpp"
 
 #include <string>
 #include <memory>
@@ -11,7 +12,6 @@ namespace fed {
 
 template<typename T1, typename T2>
 concept forward = std::same_as<std::remove_cvref_t<T1>, T2>;
-#define FWD(...) std::forward<decltype(__VA_ARGS__)>(__VA_ARGS__)
 
 class compilation_error {
     struct error_base {

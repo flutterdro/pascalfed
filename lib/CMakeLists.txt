@@ -8,6 +8,7 @@ target_link_libraries(fed_representations PUBLIC fmt::fmt cpptrace::cpptrace)
 target_sources(fed_representations
     PRIVATE
         representations/ast/pretty-print.cpp
+        representations/ast/compare.cpp
 )
 
 

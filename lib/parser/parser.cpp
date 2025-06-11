@@ -2,6 +2,7 @@
 #include "fed/diagnostics/buffer.hpp"
 #include "fed/diagnostics/compile-error.hpp"
 #include "fed/parser/context.hpp"
+#include "fed/representations/raw-source.hpp"
 #include "fed/scanner/token.hpp"
 #include <variant>
 
@@ -14,6 +15,11 @@ parser::parser(
     diagnostics_buffer& buffer
 )
     : m_lexer(buffer, source), m_diagnostics(buffer), m_context(std::move(context)) {}
+
+auto parser::remount(source::full_view view)
+    -> void {
+    m_lexer.remount(view);
+}
 
 auto parser::cursor() const noexcept
     -> source::iterator {
@@ -43,11 +49,15 @@ auto parser::push_error(compilation_error err)
 auto parser::context() noexcept
     -> semantic_context& { return m_context; }
 auto parser::consume_and_advance_expecting(token_type token)
-    -> void {
+    -> parse_result<void> {
     if (current_token().type() == token) {
         consume_and_advance();
+        return {};
     }
-    else  push_error(parse_error());
+    else {
+        push_error(parse_error());
+        return std::unexpected(parse_error());
+    }
 
 }
 

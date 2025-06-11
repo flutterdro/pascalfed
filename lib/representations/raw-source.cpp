@@ -6,8 +6,7 @@ namespace fed::source {
 view::view(iterator begin, iterator end) noexcept
     : m_view(begin.base(), end.base()), m_marker(begin.where()) {}
 
-full_view::full_view(underlying_view_t view)
-    : m_view{view} {}
+
 
 auto iterator::operator++() noexcept
     -> iterator& {
@@ -64,7 +63,7 @@ auto view::begin() const noexcept
 auto view::end() const noexcept
     -> sentinel {}
 auto view::data() const noexcept
-    -> char const* {}
+    -> char const* { return m_view.data(); }
 static_assert(std::forward_iterator<full_view::iterator>);
 
 } // namespace fed::source

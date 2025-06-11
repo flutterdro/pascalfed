@@ -55,6 +55,9 @@ public:
         -> semantic_result<void>;
     auto add_constant(ast::constant_declaration)
         -> semantic_result<void>;
+
+    auto get_poison_type() const 
+        -> ast::type_identifier;
     
     auto get_ast_node(function_id) const
         -> ast::observer_handle<ast::function_declaration>;
@@ -84,6 +87,12 @@ public:
         -> type_observer;
 
     auto get_integer_id() const 
+        -> type_id;
+    auto get_real_id() const
+        -> type_id;
+    auto get_bool_id() const
+        -> type_id;
+    auto get_char_id() const
         -> type_id;
 
     auto synthesize_dummy_expression() const

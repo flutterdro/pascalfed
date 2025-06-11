@@ -1,10 +1,14 @@
 #include "fed/parser/context.hpp"
 #include "fed/parser/semantic-error.hpp"
 #include "fed/representations/ast.hpp"
+#include "fed/representations/ast/handle.hpp"
+#include "fed/representations/ast/nodes.hpp"
 #include "fed/representations/symbol-table.hpp"
+#include "fed/utils/predicates.hpp"
 #include "fed/utils/superutil.hpp"
 #include <__expected/unexpected.h>
 #include <algorithm>
+#include <ranges>
 #include <array>
 #include <functional>
 #include <limits>
@@ -75,6 +79,23 @@ auto semantic_context::init_builtin_types()
 
 }
 
+auto semantic_context::try_get_type_id(std::string_view name) const
+    -> std::optional<type_id> {
+    return m_current_scope->lookup(name)
+        .and_then([&](symbol sym) 
+            -> std::optional<type_id> {
+            if (sym.type != symbol_type::type) return std::nullopt;
+            return static_cast<type_id>(sym.id);
+        });
+}
+auto semantic_context::get_integer_id() const
+    -> type_id { return type_id{1}; }
+auto semantic_context::get_real_id() const
+    -> type_id { return type_id{2}; }
+auto semantic_context::get_bool_id() const
+    -> type_id { return type_id{4}; }
+auto semantic_context::get_char_id() const
+    -> type_id { return type_id{3}; }
 auto semantic_context::add_type(ast::type_declaration type_decl) 
     -> semantic_result<void> {
      if (not m_current_scope->is_free_real_estate(type_decl.name)) {
@@ -129,12 +150,17 @@ auto semantic_context::synthesize_dummy_expression() const
     };
 }
 
-auto semantic_context::get_integer_id() const
-    -> type_id {
-    return static_cast<type_id>(1);
-}
 
 namespace {
+template<typename T>
+inline constexpr auto extract_type_from_handle = 
+    [](ast::observer_handle<T> arg) 
+        -> ast::observer_handle<ast::type> {
+        return arg.and_then([](T const& arg_) 
+            -> ast::observer_handle<ast::type> {
+            return arg_.type;
+        });
+    };
 struct type_matcher {
     auto match(
         ast::observer_handle<ast::type> type1,
@@ -198,11 +224,15 @@ struct type_matcher {
         if (not match(type1.return_type, type2.return_type).has_value()) {
             return std::unexpected(contextual_error());
         }
-        if (type1.argument_types.size() != type2.argument_types.size()) {
+        if (type1.arguments.size() != type2.arguments.size()) {
             return std::unexpected(contextual_error());
         }
-        for (std::size_t i = 0; i < type1.argument_types.size(); ++i) {
-            if (not match(type1.argument_types[i], type2.argument_types[i]).has_value()) {
+        auto arg_types1 = type1.arguments 
+            | std::views::transform(extract_type_from_handle<ast::argument>);
+        auto arg_types2 = type2.arguments
+            | std::views::transform(extract_type_from_handle<ast::argument>);
+        for (std::size_t i = 0; i < type1.arguments.size(); ++i) {
+            if (not match(arg_types1[i], arg_types2[i]).has_value()) {
                 return std::unexpected(contextual_error());
             }
         }
@@ -394,7 +424,8 @@ auto semantic_context::call_type(
     ast::function_type const& func, 
     std::span<type_observer> caller_args
 ) const -> semantic_result<type_observer> {
-    auto const& callee_args = func.argument_types;
+    auto callee_args = func.arguments
+        | std::views::transform(extract_type_from_handle<ast::argument>);
     if (callee_args.size() != caller_args.size()) {
         // TODO: errors
         return std::unexpected(contextual_error());
@@ -492,12 +523,18 @@ auto semantic_context::member_type(
     ast::record_type const& record, 
     ast::identifier_view name
 ) const -> semantic_result<type_observer> {
-    auto const& member_map = record.fixed_part.members;
-    auto const member_it = member_map.find(name);
-    if (member_it == member_map.end()) {
+    auto const member_it = std::ranges::find_if(
+        record.fixed_fields,
+        [name](ast::observer_handle<ast::fixed_field> field) -> bool {
+            return field.and_then(
+                cure(chain |&ast::fixed_field::name |equal_to(name))
+            );
+        }
+    );
+    if (member_it == record.fixed_fields.end()) {
         return std::unexpected(contextual_error());
     } 
-    return member_it->second;
+    return extract_type_from_handle<ast::fixed_field>(*member_it);
 }
 auto semantic_context::get_pointer_from_type(type_observer type) const
     -> semantic_result<ast::observer_handle<ast::pointer_type>> {

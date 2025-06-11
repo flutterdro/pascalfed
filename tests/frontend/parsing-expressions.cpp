@@ -3,8 +3,10 @@
 #include "fed/parser/context.hpp"
 #include "fed/parser/parser.hpp"
 #include "fed/representations/ast.hpp"
+#include "fed/representations/ast/forward.hpp"
 #include "fed/representations/ast/nodes.hpp"
 #include "fed/representations/ast/pretty-print.hpp"
+#include "fed/representations/ast/compare.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/utils/superutil.hpp"
 
@@ -14,6 +16,31 @@
 
 
 //
+auto create_test_context() {
+    auto result = fed::semantic_context();
+    auto add_variable = [&result](char letter) {
+        auto err = result.add_variable({
+            .name = fed::ast::identifier{letter, 'v'},
+            .type = fed::poison_pill,
+        });
+        if (not err.has_value()) {
+            throw fed::internal_error("error while creating test parse context");
+        }
+    };
+    auto add_constant = [&result](char letter) {
+        auto err = result.add_constant({
+            .name = fed::ast::identifier{letter, 'c'},
+            .constant = fed::poison_pill,
+        });
+        if (not err.has_value()) {
+            throw fed::internal_error("error while creating test parse context");
+        }
+    };
+    for (auto c = 'a'; c <= 'z'; ++c) {
+        add_variable(c);
+        add_constant(c);
+    }
+}
 auto alphabet_context() 
     -> fed::semantic_context {
     auto context = fed::semantic_context();
@@ -70,68 +97,25 @@ auto make_binary_expression(fed::ast::binary_operation op,
     };
 }
 namespace fed::ast{
-template<typename T>
-auto operator==(fed::ast::handle<T> const& lhs, fed::ast::handle<T> const& rhs)
-    -> bool {
-    // can't compare invalid nodes
-    if (lhs.is_poisoned() and rhs.is_poisoned()) return true;
-    if (lhs.is_poisoned() or rhs.is_poisoned()) return false;
-    return *lhs == *rhs;
-}
-auto operator==(
-    fed::ast::binary_expression const& lhs,
-    fed::ast::binary_expression const& rhs
-) -> bool;
-auto operator==(
-    fed::ast::unary_expression const& lhs,
-    fed::ast::unary_expression const& rhs
-) -> bool;
-auto operator==(
-    fed::ast::indexed_expression const& lhs,
-    fed::ast::indexed_expression const& rhs
-) -> bool;
-auto operator==(
-    fed::ast::called_expression const& lhs,
-    fed::ast::called_expression const& rhs
-) -> bool;
-auto operator==(
-    fed::ast::dereferenced_expression const& lhs,
-    fed::ast::dereferenced_expression const& rhs
-) -> bool;
-auto operator==(
-    fed::ast::membered_expression const& lhs,
-    fed::ast::membered_expression const& rhs
-) -> bool;
-auto operator==(
-    fed::ast::function_name const& lhs,
-    fed::ast::function_name const& rhs
-) -> bool;
-auto operator==(
-    fed::ast::variable_name const& lhs,
-    fed::ast::variable_name const& rhs
-) -> bool;
-auto operator==(
-    fed::ast::string_literal const&,
-    fed::ast::string_literal const&
-) -> bool;
-auto operator==(
-    fed::ast::integer_literal const&,
-    fed::ast::integer_literal const&
-) -> bool;
-auto operator==(
-    fed::ast::real_literal const&,
-    fed::ast::real_literal const&
-) -> bool;
-auto operator==(
-    fed::ast::enum_constant const&,
-    fed::ast::enum_constant const&
-) -> bool;
-auto operator==(
-    fed::ast::constant_name const&,
-    fed::ast::constant_name const&
-) -> bool;
-}
+TEST_CASE("Parsing expression atom", "[frontend][parsing]"){
+    using namespace fed;
+    SECTION("Integer literal") {
+        auto diagnostics = fed::diagnostics_buffer();
+        auto parser = fed::parser(
+            fed::source::full_view("12312333"), 
+            alphabet_context(), 
+            diagnostics
+        );
+        auto result = parser.parse_integer();
+        if (not result.has_value()) {
+            FAIL(result.error().message());
+        }
+        CHECK(result->value == 12312333);
+    }
+    SECTION("String literal") {
 
+    }
+}
 TEST_CASE("Parsing binary expressions", "[frontend][parsing]") {
     using namespace fed;
     try {
@@ -194,103 +178,7 @@ TEST_CASE("Parsing binary expressions", "[frontend][parsing]") {
         fmt::println("Usually this should not be possible but it happened:\n{}", e.what());
         FAIL();
     } 
- 
 
-    // auto expr_res  = parse_expr("a + b");
-    // auto expr_res2 = parse_expr("a * b");
-    // auto expr_res3 = parse_expr("a * (b + c)");
-    // auto expr_res4 = parse_expr("(a + b) * c");
-    // if (not expr_res.has_value()) FAIL("it should be a valid expression");
-    // // else UNSCOPED_INFO("" << fmt::format("{}", *expr_res));
-    // if (not expr_res2.has_value()) FAIL("it should be a valid expression");
-    // // else UNSCOPED_INFO("" << fmt::format("{}", *expr_res2));
-    // if (not expr_res3.has_value()) FAIL("it should be a valid expression");
-    // // else UNSCOPED_INFO("" << fmt::format("{}", *expr_res3));
-    // if (not expr_res4.has_value()) FAIL("it should be a valid expression");
-    // else UNSCOPED_INFO("" << fmt::format("{}", *expr_res4));
-
-    // FAIL("haya");
-}
-namespace fed::ast {
-auto operator==(
-    fed::ast::binary_expression const& lhs,
-    fed::ast::binary_expression const& rhs
-) -> bool {
-    return lhs.operation == rhs.operation and
-           lhs.lhs == rhs.lhs and
-           lhs.rhs == rhs.rhs;
-}
-auto operator==(
-    fed::ast::unary_expression const& lhs,
-    fed::ast::unary_expression const& rhs
-) -> bool {
-    return false;
-}
-auto operator==(
-    fed::ast::indexed_expression const& lhs,
-    fed::ast::indexed_expression const& rhs
-) -> bool {
-    return false;
-}
-auto operator==(
-    fed::ast::called_expression const& lhs,
-    fed::ast::called_expression const& rhs
-) -> bool {
-    return false;
-}
-auto operator==(
-    fed::ast::membered_expression const& lhs,
-    fed::ast::membered_expression const& rhs
-) -> bool {
-    return false;
-}
-auto operator==(
-    fed::ast::function_name const& lhs,
-    fed::ast::function_name const& rhs
-) -> bool {
-    return false;
-}
-auto operator==(
-    fed::ast::variable_name const& lhs,
-    fed::ast::variable_name const& rhs
-) -> bool {
-    return lhs.id == rhs.id;
-}
-auto operator==(
-    real_literal const&, 
-    real_literal const&
-) -> bool {
-    return false;
-}
-auto operator==(
-    integer_literal const&, 
-    integer_literal const&
-) -> bool {
-    return false;
-}
-auto operator==(
-    constant_name const&, 
-    constant_name const&
-) -> bool {
-    return false;
-}
-auto operator==(
-    enum_constant const&, 
-    enum_constant const&
-) -> bool {
-    return false;
-}
-auto operator==(
-    string_literal const&, 
-    string_literal const&
-) -> bool {
-    return false;
-}
-auto operator==(
-    dereferenced_expression const&, 
-    dereferenced_expression const&
-) -> bool {
-    return false;
 }
 }
 

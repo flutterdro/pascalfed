@@ -1,6 +1,7 @@
 #ifndef FED_SUPERUTIL_HPP_
 #define FED_SUPERUTIL_HPP_
 
+#include <concepts>
 #include <ranges>
 #include <algorithm>
 #include <utility>
@@ -41,6 +42,37 @@ private:
 
 namespace fed {
 
+template<typename F>
+struct chainable {
+    constexpr auto operator()(auto&& arg) const
+        -> decltype(auto) { return std::invoke(func, FWD(arg)); }
+    template<typename F1>
+    explicit constexpr chainable(F1&& callable) 
+    : func(FWD(callable)) {}
+    template<typename Self, typename FNext>
+    constexpr auto operator|(this Self&& self, FNext&& func_next)
+        -> decltype(auto) {
+        return ::fed::chainable([self_ = FWD(self), func_next_ = FWD(func_next)](auto&& arg){
+            return std::invoke(func_next_, std::invoke(self_.func, FWD(arg)));
+        });
+    }
+    F func;
+};
+template<typename F>
+chainable(F&&) -> chainable<std::remove_cvref_t<F>>;
+inline constexpr struct chain_t {
+    template<typename F>
+    constexpr auto operator|(F&& func) const
+        -> decltype(auto) {
+        return chainable<F>(FWD(func));
+    }
+} chain;
+template<typename Constructee>
+inline constexpr auto construct = [](auto&&... args)
+    requires std::constructible_from<Constructee, decltype(args)...> {
+    return Constructee(FWD(args)...);
+};
+
 inline constexpr struct poison_t {} poison_pill;
 inline constexpr struct consumed_t {} consumed;
 
@@ -64,10 +96,10 @@ struct antidote {
     constexpr antidote(U&& val) 
         : data(FWD(val)) {}
 
-    operator T& ()             &  { return data; }
-    operator T const& ()  const&  { return data; }
-    operator T&& ()            && { return std::move(data); }
-    operator T const&& () const&& { return std::move(data); }
+    constexpr operator T& ()             &  { return data; }
+    constexpr operator T const& ()  const&  { return data; }
+    constexpr operator T&& ()            && { return std::move(data); }
+    constexpr operator T const&& () const&& { return std::move(data); }
 
     T data;
 };

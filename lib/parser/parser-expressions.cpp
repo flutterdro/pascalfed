@@ -1,9 +1,11 @@
+#include "fed/diagnostics/internal-error.hpp"
 #include "fed/parser/context.hpp"
 #include "fed/parser/parser.hpp"
 #include "fed/representations/ast.hpp"
 #include "fed/representations/ast/nodes.hpp"
 #include "fed/scanner/token.hpp"
 #include "fed/utils/superutil.hpp"
+#include <charconv>
 #include <fmt/std.h>
 #include <__expected/unexpected.h>
 #include <fmt/base.h>
@@ -180,30 +182,6 @@ auto parser::parse_rhs(ast::expression lhs, precedence::level threshold)
         .rhs  = std::move(rhs),
         .operation = token_to_operation(operation_token),
     }, op_precedence);
-    // auto rhs = [&] -> ast::expression {
-    //     if (current_token().type() == token_type::l_paren) {
-    //         return parse_expression()
-    //             .transform_error(LIFT_MEMBER(push_error))
-    //             .value_or(context().synthesize_dummy_expression());
-    //     } else {
-    //         auto rhs = parse_expression_leaf()
-    //             .transform_error(LIFT_MEMBER(push_error))
-    //             .value_or(context().synthesize_dummy_expression());
-    //         if (auto tok = current_token().type();
-    //             is_binary_operator(tok) and binary_operator_precedence(tok) >= threshold) {
-    //             return parse_expression(std::move(rhs), threshold)
-    //                 .transform_error(LIFT_MEMBER(push_error))
-    //                 .value_or(context().synthesize_dummy_expression());
-    //         }
-    //         return rhs;
-    //     }
-    // }();
-    // return ast::binary_expression{
-    //     .type      = poison_pill,
-    //     .lhs       = std::move(lhs),
-    //     .rhs       = std::move(rhs),
-    //     .operation = token_to_operation(operation_token),
-    // };
 }
 
 auto parser::parse_expression_leaf() 
@@ -450,6 +428,24 @@ auto parser::determine_name_type(ast::identifier_view name)
             .id = ast::constant_id::poison,
         };
     }
+}
+
+auto parser::parse_integer()
+    -> parse_result<ast::integer_literal> {
+    if (current_token_is(not equal_to(token_type::number_integer))) {
+        return std::unexpected(parse_error());
+    }
+    auto tok = consume_and_advance().view();
+    auto number = int(0);
+    auto [ptr, ec] = std::from_chars(tok.data(), tok.data() + tok.size(), number);
+    if (ec == std::errc::invalid_argument) {
+        throw fed::internal_error("wiwiwi");
+    } else if (ec == std::errc::result_out_of_range) {
+        return std::unexpected(parse_error());
+    }
+    return ast::integer_literal{
+        .value = number,
+    };
 }
 
 

@@ -1,5 +1,7 @@
 #include <fmt/base.h>
+#include <utility>
 #include "fed/representations/ast.hpp"
+#include "fed/representations/ast/nodes.hpp"
 #include "fed/representations/ast/pretty-print.hpp"
 
 using namespace fed;
@@ -131,6 +133,110 @@ auto fmt::formatter<ast::function_name>::format(
 
 auto fmt::formatter<ast::constant>::format(
     ast::constant const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+
+auto fmt::formatter<ast::type>::format(
+    ast::type const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    return std::visit([&]<typename T>(T const& v) {
+        return fmt::formatter<T>{indentable::same_level()}
+            .format(v, ctx);
+    }, val);
+}
+
+auto fmt::formatter<ast::type_identifier>::format(
+    ast::type_identifier const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "type id: {}", std::to_underlying(val.id));
+}
+auto fmt::formatter<ast::pointer_type>::format(
+    ast::pointer_type const& val,
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    ctx.out() = fmt::format_to(ctx.out(), "pointer to:\n");
+    return fmt::formatter<ast::handle<ast::type>>{indentable::new_level()}
+            .format(val.base, ctx);
+}
+
+auto fmt::formatter<ast::array_type>::format(
+    ast::array_type const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    ctx.out() = fmt::format_to(ctx.out(), "array of:\n");
+    ctx.out() = fmt::formatter<ast::handle<ast::type>>{indentable::new_level()}
+            .format(val.component_type, ctx);
+    ctx.out()++ = '\n';
+
+    ctx.out() = indentable::new_level().indent(ctx);
+    ctx.out() = fmt::format_to(ctx.out(), "indexed with:");
+    for (auto const& index_type : val.index_types) {
+        ctx.out()++ = '\n';
+        ctx.out() = fmt::formatter<ast::handle<ast::type>>{
+            indentable::new_level().new_level()
+        }.format(index_type, ctx);
+    }
+    return ctx.out();
+}
+auto fmt::formatter<ast::function_type>::format(
+    ast::function_type const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+auto fmt::formatter<ast::file_type>::format(
+    ast::file_type const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+auto fmt::formatter<ast::set_type>::format(
+    ast::set_type const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+auto fmt::formatter<ast::record_type>::format(
+    ast::record_type const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+auto fmt::formatter<ast::enumerated_type>::format(
+    ast::enumerated_type const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+auto fmt::formatter<ast::subrange_type>::format(
+    ast::subrange_type const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+auto fmt::formatter<ast::type_builtin>::format(
+    ast::type_builtin const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+auto fmt::formatter<ast::procedure_type>::format(
+    ast::procedure_type const& val, 
     fmt::format_context& ctx
 ) const -> fmt::format_context::iterator {
     ctx.out() = indentable::indent(ctx);

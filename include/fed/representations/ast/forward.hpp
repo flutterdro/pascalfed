@@ -9,6 +9,11 @@
 
 namespace fed::ast {
 
+template<typename T>
+class handle;
+template<typename T>
+class observer_handle;
+
 using std::variant;
 
 using identifier = std::string;
@@ -19,6 +24,9 @@ template<typename T>
 using group = std::vector<T>;
 template<typename T>
 using maybe = std::optional<T>;
+
+struct argument;
+enum class argument_kind;
 
 struct enumerated_type;
 struct subrange_type;
@@ -45,6 +53,12 @@ using type = variant<
     procedure_type,
     type_builtin
 >;
+
+struct fixed_field;
+struct variant_field;
+struct variant_part;
+using fixed_part = group<handle<fixed_field>>;
+
 
 struct enum_constant;
 struct constant_name; 

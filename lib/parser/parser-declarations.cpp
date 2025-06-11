@@ -2,10 +2,15 @@
 #include "fed/diagnostics/internal-error.hpp"
 #include "fed/parser/parse_error.hpp"
 #include "fed/representations/ast.hpp"
+#include "fed/representations/ast/forward.hpp"
+#include "fed/representations/ast/nodes.hpp"
 #include "fed/scanner/token.hpp"
+#include "fed/utils/macros.hpp"
+#include "fed/utils/predicates.hpp"
 #include "fed/utils/superutil.hpp"
 #include "fed/diagnostics/buffer.hpp"
 
+#include <__expected/unexpected.h>
 #include <boost/charconv/chars_format.hpp>
 #include <boost/charconv/from_chars.hpp>
 
@@ -80,15 +85,6 @@ namespace fed {
 //     return (parser.*func)();
 // }
 //
-// auto parser::consume_and_advance_expecting(token_type token)
-//     -> std::optional<parse_error> {
-//     if (current_token().type() == token) {
-//         consume_and_advance();
-//         return std::nullopt;
-//     }
-//     else return parse_error();
-//
-// }
 //
 // // program = program-heading ';' block
 // auto parser::parse_program()
@@ -236,95 +232,212 @@ namespace fed {
 //     return result;
 // }
 //
-// /// TYPE DECLARATION PARSING
-//
-// auto parser::parse_type_definition() 
-//     -> parse_result<handle<ast::type_declaration>> {
-//     auto result = handle<ast::type_declaration>();
-//
-//     TRY(result->name, parse_identifier());
-//     TRY_OPT(consume_and_advance_expecting(token_type::equal));
-//     TRY(result->types, parse_type());
-//
-//     // auto error_opt = m_context.insert(result->name->view.base(), result.get());
-//     // if (error_opt.has_value()) {
-//     //     m_diagnostics.push_back(*error_opt);
-//     // }
-//
-//     return result;
-// }
-//
-// auto parser::parse_type()
-//     -> parse_result<handle<ast::type>> {
-//     auto result = handle<ast::type>();
-//
-//     switch (current_token().type()) {
-//         case token_type::keyword_array: {
-//             TRY(result, parse_array_type());
-//             break;
-//         }
-//         case token_type::keyword_set: {
-//             TRY(result, parse_set_type());
-//             break;
-//         }
-//         case token_type::keyword_file: {
-//             TRY(result, parse_file_type());
-//             break;
-//         }
-//         case token_type::keyword_record: {
-//             TRY(result, parse_record_type());
-//             break;
-//         }
-//         case token_type::l_paren: {
-//             TRY(result, parse_enumerated_type());
-//             break;
-//         }
-//         case token_type::identifier: {
-//             // auto type = ast::type_identifier();
-//             // type.identifier = {current_token().view()};
-//             // auto expected_id = m_context.lookup_type(current_token().view().base());
-//             // if (not expected_id.has_value()) {
-//             //     m_diagnostics.push_back(std::move(expected_id.error()));
-//             //     result.poison();
-//             //     break;
-//             // }
-//             // type.id = *expected_id;
-//             break;
-//         }
-//         case token_type::number_real:case token_type::number_integer:
-//         case token_type::literal: {
-//             auto range = ast::subrange_type();
-//             TRY(range.begin, parse_constant());
-//             TRY_OPT(consume_and_advance_expecting(token_type::dotdot));
-//             TRY(range.end, parse_constant());
-//             result = std::move(range);
-//             break;
-//         }
-//         default: break;
-//     }
-//
-//     return result;
-// }
-//
-// auto parser::parse_array_type() 
-//     -> parse_result<handle<ast::array_type>> {
-//     auto result = ast::array_type();
-//     
-//     TRY_OPT(consume_and_advance_expecting(token_type::keyword_array));
-//     TRY_OPT(consume_and_advance_expecting(token_type::l_square));
-//
-//     //TODO: verify ordinal type;
-//     TRY(result.index_types, parse_group_of_symbols(
-//         *this, &parser::parse_type, 
-//         {token_type::r_square}, token_type::comma)
-//     );
-//     TRY_OPT(consume_and_advance_expecting(token_type::r_square));
-//     TRY_OPT(consume_and_advance_expecting(token_type::keyword_of));
-//     TRY(result.component_type, parse_type());
-//
-//     return result;
-// }
-//
+/// TYPE DECLARATION PARSING
+
+auto parser::parse_type_definition() 
+    -> parse_result<ast::type_declaration> {
+    auto identifier_exp = parse_identifier();
+    if (not identifier_exp.has_value()) {
+        return std::unexpected(identifier_exp.error());
+    }
+    auto err = consume_and_advance_expecting(token_type::equal);
+    if (not err.has_value()) {
+        return std::unexpected(err.error());
+    }
+    auto type_exp = parse_type();
+    if (not type_exp.has_value()) {
+        return std::unexpected(type_exp.error());
+    }
+    
+    return ast::type_declaration{
+        .name = std::move(identifier_exp.value()),
+        .type = std::move(type_exp.value()),
+    };
+}
+
+auto parser::parse_type()
+    -> parse_result<ast::type> {
+
+    switch (current_token().type()) {
+        case token_type::keyword_array: {
+            return parse_array_type()
+                .transform(construct<ast::type>);
+        }
+        case token_type::keyword_set: {
+            return parse_set_type()
+                .transform(construct<ast::type>);
+        }
+        case token_type::keyword_file: {
+            return parse_file_type()
+                .transform(construct<ast::type>);
+        }
+        case token_type::keyword_record: {
+            // return parse_record_type()
+            //     .transform(construct<ast::type>);
+        }
+        case token_type::keyword_function: {
+            return parse_function_type()
+                .transform(construct<ast::type>);
+        }
+        case token_type::caret: {
+            return parse_pointer_type()
+                .transform(construct<ast::type>);
+        }
+        case token_type::l_paren: {
+            // return parse_enumerated_type()
+            //     .transform(construct<ast::type>);
+        }
+        case token_type::identifier: {
+            if (context().try_get_type_id(current_token().view().base()).has_value()) {
+                return parse_type_identifier()
+                    .transform(construct<ast::type>);
+            } else if (context().try_get_constant_id(current_token().view().base()).has_value()) {
+                [[fallthrough]];
+            } else {
+                return std::unexpected(parse_error());
+            }
+        }
+        case token_type::number_real:
+        case token_type::number_integer:
+        case token_type::literal: {
+            // return parse_subrange_type()
+            //     .transform(construct<ast::type>);
+        }
+        default: return std::unexpected(parse_error());
+    }
+}
+
+auto parser::parse_type_identifier()
+    -> parse_result<ast::type_identifier> {
+    if (current_token().type() != token_type::identifier) {
+        return std::unexpected(parse_error());
+    }
+    auto token = consume_and_advance().view();
+    auto id_opt = context().try_get_type_id(token.base());
+
+    if (id_opt.has_value()) {
+        return ast::type_identifier{.id = id_opt.value()};
+    }
+
+    return std::unexpected(parse_error());
+}
+
+auto parser::parse_pointer_type()
+    -> parse_result<ast::pointer_type> {
+    return consume_and_advance_expecting(token_type::caret)
+        .and_then(LIFT_MEMBER(parse_type))
+        .transform(construct<ast::pointer_type>);
+}
+
+auto parser::parse_array_type() 
+    -> parse_result<ast::array_type> {
+     
+    // parse maybe packed , array, [
+    if (auto succ = consume_and_advance_expecting(token_type::keyword_array);
+        not succ.has_value()) {
+        return std::unexpected(succ.error());
+    }
+    if (auto succ = consume_and_advance_expecting(token_type::l_square);
+        not succ.has_value()) {
+        return std::unexpected(succ.error());
+    }
+        
+    auto indices = parse_many(&parser::parse_type, parse_parameters{
+        .separator = token_type::comma,
+        .success_terminators = {token_type::r_square},
+        .hazard_terminators  = {
+            token_type::keyword_of, token_type::semicolon,
+            token_type::keyword_end, token_type::r_paren,
+        },
+    }); 
+
+    if (auto succ = consume_and_advance_expecting(token_type::r_square);
+        not succ.has_value()) {
+        return std::unexpected(succ.error());
+    }
+    if (auto succ = consume_and_advance_expecting(token_type::keyword_of);
+        not succ.has_value()) {
+        return std::unexpected(succ.error());
+    }
+
+    auto component_type = parse_type();
+
+    return ast::array_type{
+        .index_types = std::move(indices),
+        .component_type = std::move(component_type)
+            .transform(construct<ast::handle<ast::type>>)
+            .value_or(poison_pill),
+    };
+}
+
+auto parser::parse_argument()
+    -> parse_result<ast::argument> {
+    auto kind = maybe_consume_and_advance_expecting(token_type::keyword_var)?
+        ast::argument_kind::ref :
+        ast::argument_kind::copy;
+    auto identifier = current_token_is(equal_to(token_type::identifier))? 
+        ast::maybe<ast::identifier>(consume_and_advance().view().base()) :
+        std::nullopt;
+    if (auto success = consume_and_advance_expecting(token_type::colon);
+        not success.has_value()) {
+        return std::unexpected(success.error());
+    }
+    auto type = parse_type()
+        .transform_error(LIFT_MEMBER(push_error))
+        .transform(construct<ast::handle<ast::type>>)
+        .value_or(poison_pill);
+
+    return ast::argument{
+        .name = std::move(identifier),
+        .type = std::move(type),
+        .kind = kind,
+    };
+}
+
+auto parser::parse_function_type()
+    -> parse_result<ast::function_type> {
+    if (auto success = consume_and_advance_expecting(token_type::keyword_function);
+        not success.has_value()) {
+        return std::unexpected(success.error());
+    }
+    if (auto success = consume_and_advance_expecting(token_type::l_paren);
+        not success.has_value()) {
+        return std::unexpected(success.error());
+    }
+    auto argument_list = parse_many(
+        &parser::parse_argument,
+        parse_parameters{
+            .separator = token_type::comma,
+            .success_terminators = {token_type::r_paren},
+            .hazard_terminators  = {}
+        }
+    );
+    if (auto success = consume_and_advance_expecting(token_type::r_paren);
+        not success.has_value()) {
+        return std::unexpected(success.error());
+    }
+    if (auto success = consume_and_advance_expecting(token_type::colon);
+        not success.has_value()) {
+        return std::unexpected(success.error());
+    }
+    
+    auto return_type = parse_type()
+        .transform_error(LIFT_MEMBER(push_error))
+        .transform(construct<ast::handle<ast::type>>)
+        .value_or(poison_pill);
+
+    return ast::function_type{
+        .return_type = std::move(return_type),
+        .arguments = std::move(argument_list),
+    };
+}
+
+auto parser::parse_fixed_part()
+    -> parse_result<ast::fixed_part> {
+    return ast::fixed_part{
+
+    };
+}
 // auto parser::parse_record_type()
 //     -> parse_result<handle<ast::record_type>> {
 //     auto result = handle<ast::record_type>();
@@ -435,28 +548,22 @@ namespace fed {
 //     //
 //     // return result;
 // }
-//
-// auto parser::parse_set_type()
-//     -> parse_result<handle<ast::set_type>> {
-//     auto result = ast::set_type();
-//
-//     TRY_OPT(consume_and_advance_expecting(token_type::keyword_set));
-//     TRY_OPT(consume_and_advance_expecting(token_type::keyword_of));
-//     TRY(result.base, parse_type());
-//
-//     return result;
-// }
-//
-// auto parser::parse_file_type()
-//     -> parse_result<handle<ast::file_type>> {
-//     auto result = ast::file_type();
-//
-//     TRY_OPT(consume_and_advance_expecting(token_type::keyword_file));
-//     TRY_OPT(consume_and_advance_expecting(token_type::keyword_of));
-//     TRY(result.component_type, parse_type());
-//
-//     return result;
-// }
+
+auto parser::parse_set_type()
+    -> parse_result<ast::set_type> {
+    return consume_and_advance_expecting(token_type::keyword_set)
+        .and_then([this]() { return consume_and_advance_expecting(token_type::keyword_of); })
+        .and_then([this]() { return parse_type(); })
+        .transform([](auto&& type) { return ast::set_type{ .base = std::move(type) }; });
+}
+
+auto parser::parse_file_type()
+    -> parse_result<ast::file_type> {
+    return consume_and_advance_expecting(token_type::keyword_file)
+        .and_then([this]() { return consume_and_advance_expecting(token_type::keyword_of); })
+        .and_then([this]() { return parse_type(); })
+        .transform([](auto&& type) { return ast::file_type{ .component_type = std::move(type) }; });
+}
 //
 //
 // auto parser::parse_subrange_type()

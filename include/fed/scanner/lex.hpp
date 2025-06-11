@@ -16,6 +16,9 @@ struct lexer {
     lexer(lexer const&) = default;
     lexer(lexer&&) noexcept = default;
 
+    auto remount(source::full_view)
+        -> void;
+
     auto cursor() const noexcept
         -> source::iterator;
 

@@ -26,6 +26,14 @@ lexer::lexer(diagnostics_buffer& buffer, source::full_view view)
         m_is_relexing(false)
 {}
 
+auto lexer::remount(source::full_view view) 
+    -> void {
+    m_source = view;
+    m_cursor = view.begin();
+    m_cached_token = {};
+    m_is_relexing = false;
+}
+
 auto lexer::cursor() const noexcept
     -> source::iterator { return m_cursor; }
 

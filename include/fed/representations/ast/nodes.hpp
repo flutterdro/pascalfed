@@ -29,16 +29,10 @@ namespace fed::ast {
 
 
 
-
-
-
-struct enumerated_type;
-
 struct type_declaration;
 using type_id = symbol_mapback<handle<type_declaration>>::id;
 struct type_identifier {
     type_id id;
-    handle<identifier> identifier;
 };
 
 struct program_heading {
@@ -125,33 +119,43 @@ struct set_type {
 struct file_type {
     handle<type> component_type;
 };
-
+enum class argument_kind {
+    copy,
+    ref,
+};
+struct argument {
+    maybe<identifier> name;
+    handle<type>      type;
+    argument_kind     kind;
+    
+};
 struct function_type {
     handle<type> return_type;
-    group<handle<type>> argument_types;
+    group<handle<argument>> arguments;
 };
 
 struct procedure_type {
     group<handle<type>> argument_types;
 };
 
-struct fixed_fields {
-    group<handle<type>>             member_types;
-    name_map<observer_handle<type>> members;
-};
-struct variant_part {
-    group<handle<constant>> matches;
-    handle<record_type> fields;
+struct fixed_field  {
+    identifier name;
+    handle<type> type;
 };
 struct variant_field {
-    handle<identifier> name;
-    handle<type> tag;
-    group<handle<variant_part>> variants;
+    handle<constant>   name;
+    handle<fixed_part> fields;
+};
+struct variant_part {
+    maybe<identifier>            name;
+    type_identifier              discrimination_type;
+    group<handle<variant_field>> fields;
 };
 
+using fixed_part = group<handle<fixed_field>>;
 struct record_type {
-    fixed_fields fixed_part; 
-    std::optional<handle<variant_field>> variant_part;
+    fixed_part   fixed_fields;
+    handle<variant_part> variant_fields;
 };
 
 struct type_declaration {
