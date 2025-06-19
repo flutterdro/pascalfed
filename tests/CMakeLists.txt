@@ -19,4 +19,6 @@ target_sources(frontend_tests
 
 include(CTest)
 include(Catch)
-catch_discover_tests(frontend_tests)
+catch_discover_tests(frontend_tests
+    PROPERTIES TIMEOUT 10
+)

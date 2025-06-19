@@ -1,6 +1,7 @@
 #include "fed/parser/context.hpp"
 #include "fed/parser/semantic-error.hpp"
 #include "fed/representations/ast.hpp"
+#include "fed/representations/ast/forward.hpp"
 #include "fed/representations/ast/handle.hpp"
 #include "fed/representations/ast/nodes.hpp"
 #include "fed/representations/symbol-table.hpp"
@@ -65,14 +66,14 @@ auto semantic_context::init_builtin_types()
             .type = ast::type(ast::type_builtin::character),
         }
     );
+    auto bool_constants = ast::group<ast::handle<ast::identifier>>();
+    bool_constants.push_back(ast::handle(ast::identifier("False")));
+    bool_constants.push_back(ast::handle(ast::identifier("True")));
     add_type( // NOLINT
         ast::type_declaration{
             .name = ast::identifier("Boolean"),
             .type = ast::type(ast::enumerated_type{
-                .enum_members = ast::group<ast::identifier>{
-                    ast::identifier("False"),
-                    ast::identifier("True")
-                }
+                .enum_members = std::move(bool_constants)
             })
         }
     );

@@ -179,6 +179,14 @@ auto lexer::lex_as_number() noexcept
                 break;
             }
             case '.': {
+                auto lookahead = m_cursor;
+                ++lookahead;
+                if (lookahead != m_source.end()) {
+                    if (*lookahead == '.') {
+                        end = m_cursor;
+                        goto exit;
+                    }
+                }
                 if (is_lexing_exponent or is_lexing_fraction) {
                     // errors
                 } else {
@@ -214,7 +222,7 @@ auto lexer::lex_as_number() noexcept
         }
        
     }
-
+exit:
     return {
         .m_view = source::view(start, end),
         .m_type = result_token_type,

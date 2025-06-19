@@ -28,8 +28,11 @@ auto parser::cursor() const noexcept
 
 auto parser::maybe_consume_and_advance_expecting(token_type token)
     -> bool {
-    auto tok = consume_and_advance();
-    return tok.type() == token;
+    if (current_token_is(equal_to(token))) {
+        consume_and_advance();
+        return true;
+    }
+    return false;
 }
 auto parser::current_token()
     -> token_view { return m_lexer.lex_next_token(); }

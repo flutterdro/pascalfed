@@ -1,12 +1,16 @@
 #include "fed/diagnostics/buffer.hpp"
 #include "fed/parser/parser.hpp"
 #include "fed/parser/context.hpp"
+#include "fed/representations/ast/forward.hpp"
 #include "fed/representations/ast/nodes.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/representations/ast.hpp"
 #include "fed/representations/ast/compare.hpp"
 #include "fed/representations/ast/pretty-print.hpp"
+
+#include "commons.hpp"
 #include <catch2/catch_test_macros.hpp>
+#include <optional>
 
 consteval auto operator""_fv(char const* literal, std::size_t)
     -> fed::source::full_view {
@@ -45,10 +49,13 @@ TEST_CASE("Parsing type declarations", "[frontend][parsing]") {
         diagnostics
     );
 
-    auto make_group_of_handles = []<typename... Ts>(Ts... handles) {
-        auto group = ast::group<first<Ts...>>();
+    auto make_group_of_handles = []<typename... Ts>(ast::handle<Ts>... handles) {
+        auto group = ast::group<ast::handle<first<Ts...>>>();
         (group.push_back(std::move(handles)), ...);
         return group;
+    };
+    auto make_int_constant = [](int value) -> ast::constant {
+        return ast::integer_literal{.value = value};
     };
 #   define ADD_TEST(case_info) do {\
         auto parse_case = parse_type_case case_info;\
@@ -141,11 +148,153 @@ TEST_CASE("Parsing type declarations", "[frontend][parsing]") {
         }));
     }
     SECTION("Function types") {
-        parser.remount("function () : Integer"_fv);
-        parser.remount("function (:Integer) :Integer"_fv);
-        parser.remount("function (:Integer, :Char) :Integer"_fv);
-        parser.remount("function (:function (:Integer) :Integer) :Integer"_fv);
-        parser.remount("function () :function (:Integer) :Real"_fv);
+        ADD_TEST(({
+            .source = "function () : Integer"_fv, 
+            .expected_result = ast::function_type{
+                .return_type = int_type(),
+                .arguments   = {}
+            }
+        }));
+        ADD_TEST(({
+            .source = "function (:Integer) : Integer"_fv, 
+            .expected_result = ast::function_type{
+                .return_type = int_type(),
+                .arguments   = make_group_of_handles(
+                    ast::handle(ast::argument{
+                        .name = std::nullopt,
+                        .type = int_type(),
+                        .kind = ast::argument_kind::copy,
+                    })
+                ),
+            }
+        }));
+        ADD_TEST(({
+            .source = "function (:Integer, :Char) : Integer"_fv, 
+            .expected_result = ast::function_type{
+                .return_type = int_type(),
+                .arguments   = make_group_of_handles(
+                    ast::handle(ast::argument{
+                        .name = std::nullopt,
+                        .type = int_type(),
+                        .kind = ast::argument_kind::copy,
+                    }),
+                    ast::handle(ast::argument{
+                        .name = std::nullopt,
+                        .type = char_type(),
+                        .kind = ast::argument_kind::copy,
+                    })
+                ),
+            }
+        }));
+        ADD_TEST(({
+            .source = "function (:function (:Integer) :Integer) : Integer"_fv, 
+            .expected_result = ast::function_type{
+                .return_type = int_type(),
+                .arguments   = make_group_of_handles(
+                    ast::handle(ast::argument{
+                        .name = std::nullopt,
+                        .type = ast::function_type{
+                            .return_type = int_type(),
+                            .arguments   = make_group_of_handles(
+                                ast::handle(ast::argument{
+                                    .name = std::nullopt,
+                                    .type = int_type(),
+                                    .kind = ast::argument_kind::copy,
+                                })
+                            ),
+                        },
+                        .kind = ast::argument_kind::copy,
+                    })
+                ),
+            }
+        }));
+        ADD_TEST(({
+            .source = "function () :function (:Integer) :Real"_fv, 
+            .expected_result = ast::function_type{
+                .return_type = ast::function_type{
+                    .return_type = real_type(),
+                    .arguments   = make_group_of_handles(
+                        ast::handle(ast::argument{
+                            .name = std::nullopt,
+                            .type = int_type(),
+                            .kind = ast::argument_kind::copy,
+                        })
+                    ),
+                },
+                .arguments = {},      
+            }
+        }));
+    }
+    SECTION("File and set") {
+        ADD_TEST(({
+            .source = "set of Integer"_fv, 
+            .expected_result = ast::set_type {
+                .base = int_type(),
+            }
+        }));
+        ADD_TEST(({
+            .source = "file of Integer"_fv, 
+            .expected_result = ast::file_type{
+                .component_type = int_type(),
+            }
+        }));
+
+    }
+    SECTION("Ordinal types") {
+        ADD_TEST(({
+            .source = "0..10"_fv,
+            .expected_result = ast::subrange_type{
+                .begin = make_int_constant(0),
+                .end   = make_int_constant(10)
+            }
+        }));
+        ADD_TEST(({
+            .source = "(Mon, Tue, Wed)"_fv,
+            .expected_result = ast::enumerated_type{
+                 .enum_members = make_group_of_handles(
+                    ast::handle(ast::identifier("Mon")),
+                    ast::handle(ast::identifier("Tue")),
+                    ast::handle(ast::identifier("Wed"))
+                )
+            }
+        }));
+    }
+    SECTION("Record types") {
+        SECTION("Fixed field only") {
+            auto source = 
+                "record\n"
+                "Name: record First, Last: Char end;\n"
+                "Age: Integer;\n"
+                "end"_fv;
+        ADD_TEST(({
+            .source = source,
+            .expected_result = ast::record_type{
+                 .fixed_fields = make_group_of_handles(
+                    ast::handle(ast::fixed_field{
+                        .name = "Name",
+                        .type = ast::record_type{
+                            .fixed_fields = make_group_of_handles(
+                                ast::handle(ast::fixed_field{
+                                    .name = "First",
+                                    .type = char_type()
+                                }),
+                                ast::handle(ast::fixed_field{
+                                    .name = "Last",
+                                    .type = char_type()
+                                })
+                            )
+                        }
+                    }),
+                    ast::handle(ast::fixed_field{
+                        .name = "Age",
+                        .type = int_type()
+                    })
+                )
+            }
+        }));
+
+        }
+
     }
 }
 

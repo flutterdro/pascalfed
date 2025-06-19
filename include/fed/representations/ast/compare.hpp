@@ -3,6 +3,23 @@
 #include "fed/representations/ast/forward.hpp"
 // this header adds equality comparison between nodes
 // it exists just for tests hence seperate header 
+
+// important to note that equality here is dumb comparison between nodes
+// say we have next type declarations
+// type 
+//   intSet = set of Integer;
+//   arr1 = array[Integer] of intSet;
+//   arr2 = array[Integer] of set of Integer 
+// even if arr1 and arr2 semantically the same their types compare false
+// because ast is different
+// though they would compare true if intSet was an alias since 
+// aliases share the same id and ast stores only ids 
+//
+// as you can see I wrote a moronic system and there is no useful way
+// to define proper comparison therefore it is written only with tests 
+// in mind 
+// it is also the reason why comparison isn't included in ast.hpp 
+// it just isn't meant to be used
 namespace fed::ast{
 
 auto operator==(enumerated_type const&, enumerated_type const&) -> bool;
@@ -14,6 +31,7 @@ auto operator==(set_type const&, set_type const&) -> bool;
 auto operator==(file_type const&, file_type const&) -> bool;
 auto operator==(function_type const&, function_type const&) -> bool;
 auto operator==(procedure_type const&, procedure_type const&) -> bool;
+auto operator==(argument const&, argument const&) -> bool;
 auto operator==(pointer_type const&, pointer_type const&) -> bool;
 
 auto operator==(enum_constant const&, enum_constant const&) -> bool;

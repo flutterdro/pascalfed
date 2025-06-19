@@ -191,7 +191,32 @@ auto fmt::formatter<ast::function_type>::format(
     fmt::format_context& ctx
 ) const -> fmt::format_context::iterator {
     ctx.out() = indentable::indent(ctx);
-    return fmt::format_to(ctx.out(), "to be implemented");
+    ctx.out() = fmt::format_to(ctx.out(), "function to:\n");
+    ctx.out() = fmt::formatter<ast::handle<ast::type>>{indentable::new_level()}
+            .format(val.return_type, ctx);
+    ctx.out()++ = '\n';
+
+    ctx.out() = indentable::new_level().indent(ctx);
+    if (val.arguments.size() > 0) {
+        ctx.out() = fmt::format_to(ctx.out(), "with:");
+    }
+    for (auto const& index_type : val.arguments) {
+        ctx.out()++ = '\n';
+        ctx.out() = fmt::formatter<ast::handle<ast::argument>>{
+            indentable::new_level().new_level()
+        }.format(index_type, ctx);
+    }
+    return ctx.out();
+}
+auto fmt::formatter<ast::argument>::format(
+    ast::argument const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    fmt::format_to(ctx.out(), "argument {}:\n", val.name);
+    return fmt::formatter<ast::handle<ast::type>>{
+        indentable::new_level()
+    }.format(val.type, ctx);
 }
 auto fmt::formatter<ast::file_type>::format(
     ast::file_type const& val, 

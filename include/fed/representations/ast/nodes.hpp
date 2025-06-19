@@ -95,7 +95,7 @@ using type = std::variant<
 
 struct enum_member {};
 struct enumerated_type {
-    group<identifier> enum_members;
+    group<handle<identifier>> enum_members;
 };
 
 struct pointer_type {

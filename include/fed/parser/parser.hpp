@@ -115,7 +115,7 @@ public:
         -> parse_result<ast::fixed_part>;
 
     auto parse_constant()
-        -> parse_result<ast::handle<ast::constant>>;
+        -> parse_result<ast::constant>;
 
 
     auto parse_identifier()
@@ -202,6 +202,9 @@ auto parser::parse_many(F&& parse_func, parse_parameters const& tokens)
     auto result = ast::group<ast::handle<get_parse_invoke_t<F>>>();
     // TODO: handle empty case
     while (true) {
+        if (current_token_is(any_of(tokens.success_terminators))) {
+            break;
+        }
         result.push_back(
             std::invoke(FWD(parse_func), *this)
                 .transform_error(LIFT_MEMBER(push_error))
@@ -218,9 +221,7 @@ auto parser::parse_many(F&& parse_func, parse_parameters const& tokens)
         //     push_error(parse_error());
         //     advance_until(not in_need_of_recovery);
         // }
-        if (current_token_is(any_of(tokens.success_terminators))) {
-            break;
-        }
+        
         if (current_token_is(any_of(tokens.hazard_terminators))) {
             // missin terminator 
             push_error(parse_error());

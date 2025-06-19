@@ -39,7 +39,14 @@ auto operator==(file_type const& lhs, file_type const& rhs)
 }
 auto operator==(function_type const& lhs, function_type const& rhs)
     -> bool {
-    return false;
+    return lhs.return_type == rhs.return_type and
+           std::ranges::equal(lhs.arguments, rhs.arguments);
+}
+auto operator==(argument const& lhs, argument const& rhs)
+    -> bool {
+    return lhs.kind == rhs.kind and
+           lhs.name == rhs.name and 
+           lhs.type == rhs.type;
 }
 auto operator==(procedure_type const& lhs, procedure_type const& rhs)
     -> bool {

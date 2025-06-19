@@ -182,6 +182,17 @@ struct fmt::formatter<fed::ast::function_type> : indentable {
 };
 
 template<>
+struct fmt::formatter<fed::ast::argument> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::argument const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+
+template<>
 struct fmt::formatter<fed::ast::subrange_type> : indentable {
     constexpr auto parse(fmt::format_parse_context& ctx) {
         return ctx.begin();

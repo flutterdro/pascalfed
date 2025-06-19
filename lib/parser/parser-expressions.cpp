@@ -448,5 +448,16 @@ auto parser::parse_integer()
     };
 }
 
+auto parser::parse_constant()
+    -> parse_result<ast::constant> {
+    switch (current_token().type()) {
+        case token_type::number_integer: {
+            return parse_integer()
+                .transform(construct<ast::constant>);
+        }
+        default: return std::unexpected(parse_error());
+    }
+}
+
 
 }

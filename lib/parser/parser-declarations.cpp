@@ -16,8 +16,10 @@
 
 #include <algorithm>
 #include <charconv>
+#include <fmt/base.h>
 #include <initializer_list>
 #include <optional>
+#include <thread>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -284,8 +286,8 @@ auto parser::parse_type()
                 .transform(construct<ast::type>);
         }
         case token_type::l_paren: {
-            // return parse_enumerated_type()
-            //     .transform(construct<ast::type>);
+            return parse_enumerated_type()
+                .transform(construct<ast::type>);
         }
         case token_type::identifier: {
             if (context().try_get_type_id(current_token().view().base()).has_value()) {
@@ -300,13 +302,47 @@ auto parser::parse_type()
         case token_type::number_real:
         case token_type::number_integer:
         case token_type::literal: {
-            // return parse_subrange_type()
-            //     .transform(construct<ast::type>);
+            return parse_subrange_type()
+                .transform(construct<ast::type>);
         }
         default: return std::unexpected(parse_error());
     }
 }
 
+auto parser::parse_enumerated_type() 
+    -> parse_result<ast::enumerated_type> {
+    if (auto succ = consume_and_advance_expecting(token_type::l_paren);
+        not succ.has_value()) {
+        return std::unexpected(succ.error());
+    }
+    auto idents = parse_many(&parser::parse_identifier, parse_parameters{
+        .separator = token_type::comma,
+        .success_terminators = {token_type::r_paren},
+        .hazard_terminators = {}
+    });
+    return ast::enumerated_type{
+        .enum_members = std::move(idents),
+    };
+}
+auto parser::parse_subrange_type()
+    -> parse_result<ast::subrange_type> {
+    auto begin = parse_constant();
+    if (not begin.has_value()) {
+        return std::unexpected(begin.error());
+    }
+    if (auto succ = consume_and_advance_expecting(token_type::dotdot);
+        not succ.has_value()) {
+        return std::unexpected(succ.error());
+    }
+    auto end   = parse_constant();
+    if (not end.has_value()) {
+        return std::unexpected(parse_error());
+    }
+    return ast::subrange_type{
+        .begin = *begin,
+        .end   = *end,
+    };
+}
 auto parser::parse_type_identifier()
     -> parse_result<ast::type_identifier> {
     if (current_token().type() != token_type::identifier) {
