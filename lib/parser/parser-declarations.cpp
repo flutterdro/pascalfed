@@ -1,3 +1,4 @@
+#include "fed/parser/context.hpp"
 #include "fed/parser/parser.hpp"
 #include "fed/diagnostics/internal-error.hpp"
 #include "fed/parser/parse_error.hpp"
@@ -236,9 +237,9 @@ namespace fed {
 //
 /// TYPE DECLARATION PARSING
 
-auto parser::parse_type_definition() 
+auto parser::parse_type_definition(semantic_context& ctx)
     -> parse_result<ast::type_declaration> {
-    auto identifier_exp = parse_identifier();
+    auto identifier_exp = parse_identifier(ctx);
     if (not identifier_exp.has_value()) {
         return std::unexpected(identifier_exp.error());
     }
@@ -246,7 +247,7 @@ auto parser::parse_type_definition()
     if (not err.has_value()) {
         return std::unexpected(err.error());
     }
-    auto type_exp = parse_type();
+    auto type_exp = parse_type(ctx);
     if (not type_exp.has_value()) {
         return std::unexpected(type_exp.error());
     }
@@ -257,20 +258,20 @@ auto parser::parse_type_definition()
     };
 }
 
-auto parser::parse_type()
+auto parser::parse_type(semantic_context const& ctx)
     -> parse_result<ast::type> {
 
     switch (current_token().type()) {
         case token_type::keyword_array: {
-            return parse_array_type()
+            return parse_array_type(ctx)
                 .transform(construct<ast::type>);
         }
         case token_type::keyword_set: {
-            return parse_set_type()
+            return parse_set_type(ctx)
                 .transform(construct<ast::type>);
         }
         case token_type::keyword_file: {
-            return parse_file_type()
+            return parse_file_type(ctx)
                 .transform(construct<ast::type>);
         }
         case token_type::keyword_record: {
@@ -278,22 +279,22 @@ auto parser::parse_type()
             //     .transform(construct<ast::type>);
         }
         case token_type::keyword_function: {
-            return parse_function_type()
+            return parse_function_type(ctx)
                 .transform(construct<ast::type>);
         }
         case token_type::caret: {
-            return parse_pointer_type()
+            return parse_pointer_type(ctx)
                 .transform(construct<ast::type>);
         }
         case token_type::l_paren: {
-            return parse_enumerated_type()
+            return parse_enumerated_type(ctx)
                 .transform(construct<ast::type>);
         }
         case token_type::identifier: {
-            if (context().try_get_type_id(current_token().view().base()).has_value()) {
-                return parse_type_identifier()
+            if (ctx.try_get_type_id(current_token().view().base()).has_value()) {
+                return parse_type_identifier(ctx)
                     .transform(construct<ast::type>);
-            } else if (context().try_get_constant_id(current_token().view().base()).has_value()) {
+            } else if (ctx.try_get_constant_id(current_token().view().base()).has_value()) {
                 [[fallthrough]];
             } else {
                 return std::unexpected(parse_error());
@@ -302,20 +303,20 @@ auto parser::parse_type()
         case token_type::number_real:
         case token_type::number_integer:
         case token_type::literal: {
-            return parse_subrange_type()
+            return parse_subrange_type(ctx)
                 .transform(construct<ast::type>);
         }
         default: return std::unexpected(parse_error());
     }
 }
 
-auto parser::parse_enumerated_type() 
+auto parser::parse_enumerated_type(semantic_context const& ctx) 
     -> parse_result<ast::enumerated_type> {
     if (auto succ = consume_and_advance_expecting(token_type::l_paren);
         not succ.has_value()) {
         return std::unexpected(succ.error());
     }
-    auto idents = parse_many(&parser::parse_identifier, parse_parameters{
+    auto idents = parse_many(&parser::parse_identifier, ctx, parse_parameters{
         .separator = token_type::comma,
         .success_terminators = {token_type::r_paren},
         .hazard_terminators = {}
@@ -324,9 +325,9 @@ auto parser::parse_enumerated_type()
         .enum_members = std::move(idents),
     };
 }
-auto parser::parse_subrange_type()
+auto parser::parse_subrange_type(semantic_context const& ctx)
     -> parse_result<ast::subrange_type> {
-    auto begin = parse_constant();
+    auto begin = parse_constant(ctx);
     if (not begin.has_value()) {
         return std::unexpected(begin.error());
     }
@@ -334,7 +335,7 @@ auto parser::parse_subrange_type()
         not succ.has_value()) {
         return std::unexpected(succ.error());
     }
-    auto end   = parse_constant();
+    auto end   = parse_constant(ctx);
     if (not end.has_value()) {
         return std::unexpected(parse_error());
     }
@@ -343,13 +344,13 @@ auto parser::parse_subrange_type()
         .end   = *end,
     };
 }
-auto parser::parse_type_identifier()
+auto parser::parse_type_identifier(semantic_context const& ctx)
     -> parse_result<ast::type_identifier> {
     if (current_token().type() != token_type::identifier) {
         return std::unexpected(parse_error());
     }
     auto token = consume_and_advance().view();
-    auto id_opt = context().try_get_type_id(token.base());
+    auto id_opt = ctx.try_get_type_id(token.base());
 
     if (id_opt.has_value()) {
         return ast::type_identifier{.id = id_opt.value()};
@@ -358,14 +359,14 @@ auto parser::parse_type_identifier()
     return std::unexpected(parse_error());
 }
 
-auto parser::parse_pointer_type()
+auto parser::parse_pointer_type(semantic_context const& ctx)
     -> parse_result<ast::pointer_type> {
     return consume_and_advance_expecting(token_type::caret)
-        .and_then(LIFT_MEMBER(parse_type))
+        .and_then([&](){ return parse_type(ctx); })
         .transform(construct<ast::pointer_type>);
 }
 
-auto parser::parse_array_type() 
+auto parser::parse_array_type(semantic_context const& ctx) 
     -> parse_result<ast::array_type> {
      
     // parse maybe packed , array, [
@@ -378,7 +379,7 @@ auto parser::parse_array_type()
         return std::unexpected(succ.error());
     }
         
-    auto indices = parse_many(&parser::parse_type, parse_parameters{
+    auto indices = parse_many(&parser::parse_type, ctx, parse_parameters{
         .separator = token_type::comma,
         .success_terminators = {token_type::r_square},
         .hazard_terminators  = {
@@ -396,7 +397,7 @@ auto parser::parse_array_type()
         return std::unexpected(succ.error());
     }
 
-    auto component_type = parse_type();
+    auto component_type = parse_type(ctx);
 
     return ast::array_type{
         .index_types = std::move(indices),
@@ -406,7 +407,7 @@ auto parser::parse_array_type()
     };
 }
 
-auto parser::parse_argument()
+auto parser::parse_argument(semantic_context const& ctx)
     -> parse_result<ast::argument> {
     auto kind = maybe_consume_and_advance_expecting(token_type::keyword_var)?
         ast::argument_kind::ref :
@@ -418,7 +419,7 @@ auto parser::parse_argument()
         not success.has_value()) {
         return std::unexpected(success.error());
     }
-    auto type = parse_type()
+    auto type = parse_type(ctx)
         .transform_error(LIFT_MEMBER(push_error))
         .transform(construct<ast::handle<ast::type>>)
         .value_or(poison_pill);
@@ -430,7 +431,7 @@ auto parser::parse_argument()
     };
 }
 
-auto parser::parse_function_type()
+auto parser::parse_function_type(semantic_context const& ctx)
     -> parse_result<ast::function_type> {
     if (auto success = consume_and_advance_expecting(token_type::keyword_function);
         not success.has_value()) {
@@ -441,7 +442,7 @@ auto parser::parse_function_type()
         return std::unexpected(success.error());
     }
     auto argument_list = parse_many(
-        &parser::parse_argument,
+        &parser::parse_argument, ctx,
         parse_parameters{
             .separator = token_type::comma,
             .success_terminators = {token_type::r_paren},
@@ -457,7 +458,7 @@ auto parser::parse_function_type()
         return std::unexpected(success.error());
     }
     
-    auto return_type = parse_type()
+    auto return_type = parse_type(ctx)
         .transform_error(LIFT_MEMBER(push_error))
         .transform(construct<ast::handle<ast::type>>)
         .value_or(poison_pill);
@@ -468,7 +469,7 @@ auto parser::parse_function_type()
     };
 }
 
-auto parser::parse_fixed_part()
+auto parser::parse_fixed_part(semantic_context const&)
     -> parse_result<ast::fixed_part> {
     return ast::fixed_part{
 
@@ -585,19 +586,19 @@ auto parser::parse_fixed_part()
 //     // return result;
 // }
 
-auto parser::parse_set_type()
+auto parser::parse_set_type(semantic_context const& ctx)
     -> parse_result<ast::set_type> {
     return consume_and_advance_expecting(token_type::keyword_set)
         .and_then([this]() { return consume_and_advance_expecting(token_type::keyword_of); })
-        .and_then([this]() { return parse_type(); })
+        .and_then([&]() { return parse_type(ctx); })
         .transform([](auto&& type) { return ast::set_type{ .base = std::move(type) }; });
 }
 
-auto parser::parse_file_type()
+auto parser::parse_file_type(semantic_context const& ctx)
     -> parse_result<ast::file_type> {
     return consume_and_advance_expecting(token_type::keyword_file)
         .and_then([this]() { return consume_and_advance_expecting(token_type::keyword_of); })
-        .and_then([this]() { return parse_type(); })
+        .and_then([&]() { return parse_type(ctx); })
         .transform([](auto&& type) { return ast::file_type{ .component_type = std::move(type) }; });
 }
 //
@@ -734,7 +735,7 @@ auto parser::parse_file_type()
 // // seperated into a function because it gets repetetive
 // // actual identifier "parsing" happens while lexing
 // // identifier = [a-zA-z][a-zA-Z0-9]*
-auto parser::parse_identifier()
+auto parser::parse_identifier(semantic_context const&)
     -> parse_result<ast::identifier> {
     auto const start = cursor();
     if (current_token().type() != token_type::identifier) {

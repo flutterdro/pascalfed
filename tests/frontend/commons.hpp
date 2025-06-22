@@ -7,6 +7,12 @@
 #include "fed/utils/superutil.hpp"
 
 using namespace std::literals;
+
+consteval auto operator""_fv(char const* literal, std::size_t)
+    -> fed::source::full_view {
+    return {literal};
+}
+
 inline auto make_default_context()
     -> fed::semantic_context {
     return fed::semantic_context();

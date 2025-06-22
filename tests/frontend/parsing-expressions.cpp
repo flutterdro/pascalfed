@@ -101,9 +101,9 @@ TEST_CASE("Parsing expression atom", "[frontend][parsing]"){
     using namespace fed;
     SECTION("Integer literal") {
         auto diagnostics = fed::diagnostics_buffer();
+        auto ctx = alphabet_context();
         auto parser = fed::parser(
             fed::source::full_view("12312333"), 
-            alphabet_context(), 
             diagnostics
         );
         auto result = parser.parse_integer();
@@ -121,9 +121,9 @@ TEST_CASE("Parsing binary expressions", "[frontend][parsing]") {
     try {
         SECTION("Left-associativity") {
             auto diagnostics = fed::diagnostics_buffer();
+            auto const ctx = alphabet_context();
             auto parser = fed::parser(
                 fed::source::full_view("a + b + c + d + e"), 
-                alphabet_context(), 
                 diagnostics
             );
             auto expected = make_binary_expression(ast::binary_operation::add, 'a', 'b');
@@ -134,7 +134,7 @@ TEST_CASE("Parsing binary expressions", "[frontend][parsing]") {
                     'a' + i
                 );
             }
-            if(auto result = parser.parse_expression()) {
+            if(auto result = parser.parse_expression(ctx)) {
                 REQUIRE(*result == expected);
             } else {
                 FAIL("failed to parse a valid expression");
@@ -143,9 +143,9 @@ TEST_CASE("Parsing binary expressions", "[frontend][parsing]") {
         }
         SECTION("Precedence") {
             auto diagnostics = fed::diagnostics_buffer();
+            auto ctx = alphabet_context();
             auto parser = fed::parser(
                 fed::source::full_view("f >= a + b * (c + d < e) * k <> j"), 
-                alphabet_context(), 
                 diagnostics
             );
             auto expected = 
@@ -168,7 +168,7 @@ TEST_CASE("Parsing binary expressions", "[frontend][parsing]") {
                     ),
                     'j'
                 );
-            auto result = *parser.parse_expression();
+            auto result = *parser.parse_expression(ctx);
             REQUIRE(result == expected);
         }
     } catch (fed::internal_error const& e) {

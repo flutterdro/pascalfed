@@ -11,10 +11,9 @@ namespace fed {
 
 parser::parser(
     source::full_view source, 
-    semantic_context context,
     diagnostics_buffer& buffer
 )
-    : m_lexer(buffer, source), m_diagnostics(buffer), m_context(std::move(context)) {}
+    : m_lexer(buffer, source), m_diagnostics(buffer) {}
 
 auto parser::remount(source::full_view view)
     -> void {
@@ -49,8 +48,6 @@ auto parser::push_error(compilation_error err)
     diagnostics().push_back(std::move(err)); 
     return std::monostate();
 }
-auto parser::context() noexcept
-    -> semantic_context& { return m_context; }
 auto parser::consume_and_advance_expecting(token_type token)
     -> parse_result<void> {
     if (current_token().type() == token) {

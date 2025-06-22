@@ -35,7 +35,7 @@ public:
         };
     };
 public: 
-    explicit parser(source::full_view, semantic_context, diagnostics_buffer&);
+    explicit parser(source::full_view, diagnostics_buffer&);
 
     auto remount(source::full_view)
         -> void;
@@ -56,8 +56,6 @@ public:
         -> bool { return pred(current_token().type()); }
     auto cursor() const noexcept
         -> source::iterator;
-    auto context() noexcept
-        -> semantic_context&;
     auto diagnostics() noexcept
         -> diagnostics_buffer&;
     auto push_error(compilation_error err) 
@@ -73,10 +71,11 @@ public:
         std::initializer_list<token_type> hazard_terminators  = {token_type::eof};
     };
     template<typename F>
-    using get_parse_invoke_t = std::invoke_result_t<F, parser>::value_type;
-    template<typename F>
-    auto parse_many(F&&, parse_parameters const&)
-        -> ast::group<ast::handle<get_parse_invoke_t<F>>>; 
+    using get_parse_invoke_t = std::invoke_result_t<F, parser, semantic_context&>::value_type;
+    template<typename F, typename CtxT>
+    auto parse_many(F&&, CtxT&&, parse_parameters const&)
+        -> ast::group<ast::handle<get_parse_invoke_t<F>>> 
+        requires std::same_as<std::remove_cvref_t<CtxT>, semantic_context>;
 
     auto parse_program() 
         -> parse_result<ast::program>; 
@@ -85,40 +84,40 @@ public:
     auto parse_block()
         -> parse_result<ast::handle<ast::block>>;
 
-    auto parse_type_definition()
+    auto parse_type_definition(semantic_context& ctx)
         -> parse_result<ast::type_declaration>;
     auto parse_variable_declaration()
         -> parse_result<ast::variable_declaration>;
-    auto parse_type()
+    auto parse_type(semantic_context const&)
         -> parse_result<ast::type>;
-    auto parse_type_identifier()
+    auto parse_type_identifier(semantic_context const&)
         -> parse_result<ast::type_identifier>;
-    auto parse_pointer_type()
+    auto parse_pointer_type(semantic_context const&)
         -> parse_result<ast::pointer_type>;
-    auto parse_enumerated_type()
+    auto parse_enumerated_type(semantic_context const&)
         -> parse_result<ast::enumerated_type>;
-    auto parse_subrange_type()
+    auto parse_subrange_type(semantic_context const&)
         -> parse_result<ast::subrange_type>;
-    auto parse_array_type()
+    auto parse_array_type(semantic_context const&)
         -> parse_result<ast::array_type>;
-    auto parse_function_type()
+    auto parse_function_type(semantic_context const&)
         -> parse_result<ast::function_type>;
-    auto parse_argument()
+    auto parse_argument(semantic_context const&)
         -> parse_result<ast::argument>;
-    auto parse_set_type()
+    auto parse_set_type(semantic_context const&)
         -> parse_result<ast::set_type>;
-    auto parse_file_type()
+    auto parse_file_type(semantic_context const&)
         -> parse_result<ast::file_type>;
-    auto parse_record_type()
+    auto parse_record_type(semantic_context const&)
         -> parse_result<ast::record_type>;
-    auto parse_fixed_part()
+    auto parse_fixed_part(semantic_context const&)
         -> parse_result<ast::fixed_part>;
 
-    auto parse_constant()
+    auto parse_constant(semantic_context const&)
         -> parse_result<ast::constant>;
 
 
-    auto parse_identifier()
+    auto parse_identifier(semantic_context const&)
         -> parse_result<ast::identifier>;
     auto parse_formal_parameter_list()
         -> parse_result<ast::group<ast::handle<ast::formal_parameter>>>;
@@ -136,13 +135,13 @@ public:
         -> parse_result<ast::handle<ast::procedure_heading>>;
 
 
-    auto parse_expression(precedence::level = precedence::lowest)
+    auto parse_expression(semantic_context const&, precedence::level = precedence::lowest)
         -> parse_result<ast::expression>;
     auto parse_binary_expression()
         -> parse_result<ast::binary_expression>;
-    auto parse_unary_expression()
+    auto parse_unary_expression(semantic_context const&)
         -> parse_result<ast::unary_expression>;
-    auto parse_expression_leaf()
+    auto parse_expression_leaf(semantic_context const&)
         -> parse_result<ast::expression>;
 
     auto parse_integer()
@@ -151,28 +150,27 @@ public:
         -> parse_result<ast::real_literal>;
 
 private:
-    auto determine_name_type(ast::identifier_view)
+    auto determine_name_type(semantic_context const&, ast::identifier_view)
         -> ast::expression_atom;
-    auto parse_expression_leaf(ast::expression)
+    auto parse_expression_leaf(semantic_context const&, ast::expression)
         -> parse_result<ast::expression>;
-    auto parse_call(ast::expression)
+    auto parse_call(semantic_context const&, ast::expression)
         -> parse_result<ast::expression>;
-    auto parse_indexing(ast::expression)
+    auto parse_indexing(semantic_context const&, ast::expression)
         -> parse_result<ast::expression>;
-    auto parse_dereferencing(ast::expression)
+    auto parse_dereferencing(semantic_context const&, ast::expression)
         -> parse_result<ast::expression>;
-    auto parse_member_access(ast::expression)
+    auto parse_member_access(semantic_context const&, ast::expression)
         -> parse_result<ast::expression>;
-    auto parse_expression(ast::expression lhs, precedence::level threshold)
+    auto parse_expression(semantic_context const&, ast::expression lhs, precedence::level threshold)
         -> parse_result<ast::expression>;
-    auto parse_lhs(precedence::level threshold)
+    auto parse_lhs(semantic_context const&, precedence::level threshold)
         -> parse_result<ast::expression>;
-    auto parse_rhs(ast::expression lhs, precedence::level threshold)
+    auto parse_rhs(semantic_context const&, ast::expression lhs, precedence::level threshold)
         -> parse_result<ast::expression>;
 private:
     lexer m_lexer;
     diagnostics_buffer& m_diagnostics;
-    semantic_context m_context;
 };
 
 constexpr auto up(parser::precedence::level lvl) noexcept
@@ -196,17 +194,17 @@ inline auto parser::consume_and_advance_expecting(std::predicate<token_type> aut
     }
 }
 
-template<typename F>
-auto parser::parse_many(F&& parse_func, parse_parameters const& tokens)
-    -> ast::group<ast::handle<get_parse_invoke_t<F>>> {
+template<typename F, typename CtxT>
+auto parser::parse_many(F&& parse_func, CtxT&& ctx, parse_parameters const& tokens)
+    -> ast::group<ast::handle<get_parse_invoke_t<F>>> 
+    requires std::same_as<std::remove_cvref_t<CtxT>, semantic_context> {
     auto result = ast::group<ast::handle<get_parse_invoke_t<F>>>();
-    // TODO: handle empty case
     while (true) {
         if (current_token_is(any_of(tokens.success_terminators))) {
             break;
         }
         result.push_back(
-            std::invoke(FWD(parse_func), *this)
+            std::invoke(FWD(parse_func), *this, ctx)
                 .transform_error(LIFT_MEMBER(push_error))
                 .transform(construct<ast::handle<get_parse_invoke_t<F>>>)
                 .value_or(poison_pill)
