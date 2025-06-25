@@ -25,9 +25,18 @@ auto operator==(array_type const& lhs, array_type const& rhs)
     return lhs.component_type == rhs.component_type and
            std::ranges::equal(lhs.index_types, rhs.index_types);
 }
-auto operator==(record_type const& lhs, record_type const& rhs)
+auto operator==(fixed_field const& lhs, fixed_field const& rhs)
+    -> bool {
+    return lhs.type == rhs.type and lhs.name == rhs.name;
+}
+auto operator==(variant_part const& lhs, variant_part const& rhs)
     -> bool {
     return false;
+}
+auto operator==(record_type const& lhs, record_type const& rhs)
+    -> bool {
+    return std::ranges::equal(lhs.fixed_fields, rhs.fixed_fields) and
+           lhs.variant_fields == rhs.variant_fields;
 }
 auto operator==(set_type const& lhs, set_type const& rhs)
     -> bool {

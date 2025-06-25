@@ -215,6 +215,17 @@ struct fmt::formatter<fed::ast::enumerated_type> : indentable {
 };
 
 template<>
+struct fmt::formatter<fed::ast::fixed_field> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::fixed_field const& exp, 
+        fmt::format_context& ctx
+    ) const -> fmt::format_context::iterator;
+};
+
+template<>
 struct fmt::formatter<fed::ast::record_type> : indentable {
     constexpr auto parse(fmt::format_parse_context& ctx) {
         return ctx.begin();

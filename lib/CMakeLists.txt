@@ -9,6 +9,7 @@ target_sources(fed_representations
     PRIVATE
         representations/ast/pretty-print.cpp
         representations/ast/compare.cpp
+        representations/ast/clone.cpp
 )
 
 

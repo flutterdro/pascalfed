@@ -19,6 +19,7 @@
 #include <charconv>
 #include <fmt/base.h>
 #include <initializer_list>
+#include <iterator>
 #include <optional>
 #include <thread>
 #include <type_traits>
@@ -275,8 +276,8 @@ auto parser::parse_type(semantic_context const& ctx)
                 .transform(construct<ast::type>);
         }
         case token_type::keyword_record: {
-            // return parse_record_type()
-            //     .transform(construct<ast::type>);
+            return parse_record_type(ctx)
+                .transform(construct<ast::type>);
         }
         case token_type::keyword_function: {
             return parse_function_type(ctx)
@@ -469,22 +470,85 @@ auto parser::parse_function_type(semantic_context const& ctx)
     };
 }
 
-auto parser::parse_fixed_part(semantic_context const&)
+auto parser::parse_fixed_part(semantic_context const& ctx)
     -> parse_result<ast::fixed_part> {
-    return ast::fixed_part{
+    auto fixed_field_parse = [](
+        parser& parser, 
+        semantic_context const& ctx
+    ) -> ast::group<ast::handle<ast::fixed_field>> {
+        auto result = ast::group<ast::handle<ast::fixed_field>>();
+        auto ids = parser.parse_many(&parser::parse_identifier, ctx, {
+            .separator = token_type::comma,
+            .success_terminators = {token_type::colon},
+            .hazard_terminators  = {},
+        });
+        parser.consume_and_advance_expecting(token_type::colon);
+        auto type = parser.parse_type(ctx)
+            .transform(construct<ast::handle<ast::type>>)
+            .value_or(poison_pill);
+        auto clone_type_for_field = [&type](ast::identifier&& idnt) 
+            -> ast::fixed_field { 
+            return {
+                .name = std::move(idnt), 
+                .type = ast::clone(type),
+            };
+        };
+        auto move_type_for_field = [&type](ast::identifier&& idnt) 
+            -> ast::fixed_field { 
+            return {
+                .name = std::move(idnt), 
+                .type = std::move(type),
+            };
+        };
+        for (auto i = std::size_t(0); i < ids.size(); ++i) {
+            auto const is_last_index = i == ids.size() - 1;
+            // why did i do that?
+            // because i didn't want an extra copy
+            if (is_last_index) {
+                result.push_back(
+                    std::move(ids[i]).transform(move_type_for_field)
+                );
+            } else {
+                result.push_back(
+                    std::move(ids[i]).transform(clone_type_for_field)
+                );
+            }
+        }
+        return result;
+    }; 
+    auto result = ast::fixed_part();
+    while (true) {
+        if (current_token_is(equal_to(token_type::keyword_end))) {
+            break;
+        }
+        std::ranges::move(
+            fixed_field_parse(*this, ctx),
+            std::back_inserter(result)
+        );
+        if (current_token_is(equal_to(token_type::keyword_end))) {
+            break;
+        }
+        consume_and_advance_expecting(token_type::semicolon);
+    }
 
+    return result;
+}
+auto parser::parse_record_type(semantic_context const& ctx)
+    -> parse_result<ast::record_type> {
+    if (current_token_is(not equal_to(token_type::keyword_record))) {
+        return std::unexpected(parse_error());
+    }
+    consume_and_advance();
+    auto fixed_fields = *parse_fixed_part(ctx);
+    if (auto success = consume_and_advance_expecting(token_type::keyword_end);
+        not success.has_value()) {
+        return std::unexpected(success.error());
+    }
+
+    return ast::record_type{
+        .fixed_fields = std::move(fixed_fields),
     };
 }
-// auto parser::parse_record_type()
-//     -> parse_result<handle<ast::record_type>> {
-//     auto result = handle<ast::record_type>();
-//
-//     TRY_OPT(consume_and_advance_expecting(token_type::keyword_record));
-//     TRY(result, parse_field_list());
-//     TRY_OPT(consume_and_advance_expecting(token_type::keyword_end));
-//
-//     return result;
-// }
 //
 // auto parser::parse_field_list()
 //     -> parse_result<handle<ast::record_type>> {

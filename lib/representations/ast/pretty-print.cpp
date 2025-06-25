@@ -232,12 +232,29 @@ auto fmt::formatter<ast::set_type>::format(
     ctx.out() = indentable::indent(ctx);
     return fmt::format_to(ctx.out(), "to be implemented");
 }
+auto fmt::formatter<ast::fixed_field>::format(
+    ast::fixed_field const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    ctx.out() = fmt::format_to(ctx.out(), "{}:\n", val.name);
+    return fmt::formatter<ast::handle<ast::type>>(
+        new_level()
+    ).format(val.type, ctx);
+}
 auto fmt::formatter<ast::record_type>::format(
     ast::record_type const& val, 
     fmt::format_context& ctx
 ) const -> fmt::format_context::iterator {
     ctx.out() = indentable::indent(ctx);
-    return fmt::format_to(ctx.out(), "to be implemented");
+    ctx.out() = fmt::format_to(ctx.out(), "record of:");
+    for (auto&& field : val.fixed_fields) {
+        ctx.out()++ = '\n';
+        ctx.out() = fmt::formatter<ast::handle<ast::fixed_field>>(
+            new_level()
+        ).format(field, ctx);
+    }
+    return ctx.out();
 }
 auto fmt::formatter<ast::enumerated_type>::format(
     ast::enumerated_type const& val, 

@@ -67,16 +67,6 @@ struct constant_declaration {
 };
 using constant_id = symbol_mapback<ast::handle<constant_declaration>>::id;
 
-struct enumerated_type;
-struct subrange_type;
-struct type_identifier;
-struct array_type;
-struct record_type;
-struct set_type;
-struct file_type;
-struct function_type;
-struct procedure_type;
-struct pointer_type;
 enum class type_builtin { integer = 1, boolean, real, character, };
 
 using type = std::variant<
@@ -155,7 +145,7 @@ struct variant_part {
 using fixed_part = group<handle<fixed_field>>;
 struct record_type {
     fixed_part   fixed_fields;
-    handle<variant_part> variant_fields;
+    maybe<handle<variant_part>> variant_fields;
 };
 
 struct type_declaration {

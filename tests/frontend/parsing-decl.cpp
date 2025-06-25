@@ -259,35 +259,35 @@ TEST_CASE("Parsing type declarations", "[frontend][parsing]") {
         SECTION("Fixed field only") {
             auto source = 
                 "record\n"
-                "Name: record First, Last: Char end;\n"
+                "Name: record First, Last: Char; end;\n"
                 "Age: Integer;\n"
                 "end"_fv;
-        // ADD_TEST(({
-        //     .source = source,
-        //     .expected_result = ast::record_type{
-        //          .fixed_fields = make_group_of_handles(
-        //             ast::handle(ast::fixed_field{
-        //                 .name = "Name",
-        //                 .type = ast::record_type{
-        //                     .fixed_fields = make_group_of_handles(
-        //                         ast::handle(ast::fixed_field{
-        //                             .name = "First",
-        //                             .type = char_type()
-        //                         }),
-        //                         ast::handle(ast::fixed_field{
-        //                             .name = "Last",
-        //                             .type = char_type()
-        //                         })
-        //                     )
-        //                 }
-        //             }),
-        //             ast::handle(ast::fixed_field{
-        //                 .name = "Age",
-        //                 .type = int_type()
-        //             })
-        //         )
-        //     }
-        // }));
+        ADD_TEST(({
+            .source = source,
+            .expected_result = ast::record_type{
+                 .fixed_fields = make_group_of_handles(
+                    ast::handle(ast::fixed_field{
+                        .name = "Name",
+                        .type = ast::record_type{
+                            .fixed_fields = make_group_of_handles(
+                                ast::handle(ast::fixed_field{
+                                    .name = "First",
+                                    .type = char_type()
+                                }),
+                                ast::handle(ast::fixed_field{
+                                    .name = "Last",
+                                    .type = char_type()
+                                })
+                            )
+                        }
+                    }),
+                    ast::handle(ast::fixed_field{
+                        .name = "Age",
+                        .type = int_type()
+                    })
+                )
+            }
+        }));
 
         }
 

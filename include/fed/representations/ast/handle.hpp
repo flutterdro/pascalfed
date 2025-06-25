@@ -44,7 +44,27 @@ public:
 
         return *this;
     }
-
+    auto and_then(auto&& f) const noexcept {
+        if (is_poisoned()) 
+            return std::remove_cvref_t<
+                std::invoke_result_t<decltype(f), T const&>
+            >(poison_pill);
+        return std::invoke(FWD(f), *this->m_handle);
+    }
+    auto transform(auto&& f) const noexcept
+        -> handle<std::remove_cvref_t<
+                std::invoke_result_t<decltype(f), T const&>
+            >> {
+        if (is_poisoned()) return poison_pill;
+        return std::invoke(FWD(f), *m_handle);
+    }
+    auto transform(auto&& f) && noexcept
+        -> handle<std::remove_cvref_t<
+                std::invoke_result_t<decltype(f), T&&>
+            >> {
+        if (is_poisoned()) return poison_pill;
+        return std::invoke(FWD(f), std::move(*m_handle));
+    }
     auto operator*()
         -> T& { 
         if (is_poisoned()) throw internal_error("accessing a poisoined handle");

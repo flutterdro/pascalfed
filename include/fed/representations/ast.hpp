@@ -4,6 +4,7 @@
 #include "fed/representations/ast/forward.hpp" // IWYU pragma: export
 #include "fed/representations/ast/handle.hpp" // IWYU pragma: export
 #include "fed/representations/ast/nodes.hpp" // IWYU pragma: export
+#include "fed/representations/ast/clone.hpp" // IWYU pragma: export
 
 #endif
 
