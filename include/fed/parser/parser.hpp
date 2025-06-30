@@ -17,13 +17,15 @@
 #include <fmt/base.h>
 #include <initializer_list>
 #include <variant>
+#include <vector>
 
 namespace fed {
 
 template<typename T>
-using parse_result = std::expected<T, parse_error>;
+using parse_result = std::expected<T, compilation_error>;
 
 class parser {
+    using token_stack = std::vector<token_type>;
 public:
     struct precedence {
         enum level {
@@ -58,6 +60,12 @@ public:
         -> source::iterator;
     auto diagnostics() noexcept
         -> diagnostics_buffer&;
+    auto hazard_terminators() const noexcept
+        -> token_stack const&;
+    auto push_hazard_terminator(token_type)
+        -> void;
+    auto pop_hazard_terminator(token_type)
+        -> void;
     auto push_error(compilation_error err) 
         -> std::monostate;
 
@@ -170,6 +178,7 @@ private:
         -> parse_result<ast::expression>;
 private:
     lexer m_lexer;
+    token_stack m_hazard_terminators;
     diagnostics_buffer& m_diagnostics;
 };
 

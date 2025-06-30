@@ -242,20 +242,20 @@ auto parser::parse_type_definition(semantic_context& ctx)
     -> parse_result<ast::type_declaration> {
     auto identifier_exp = parse_identifier(ctx);
     if (not identifier_exp.has_value()) {
-        return std::unexpected(identifier_exp.error());
+        return std::unexpected(std::move(identifier_exp.error()));
     }
     auto err = consume_and_advance_expecting(token_type::equal);
     if (not err.has_value()) {
-        return std::unexpected(err.error());
+        return std::unexpected(std::move(err).error());
     }
     auto type_exp = parse_type(ctx);
     if (not type_exp.has_value()) {
-        return std::unexpected(type_exp.error());
+        return std::unexpected(std::move(type_exp).error());
     }
     
     return ast::type_declaration{
-        .name = std::move(identifier_exp.value()),
-        .type = std::move(type_exp.value()),
+        .name = *std::move(identifier_exp),
+        .type = *std::move(type_exp),
     };
 }
 
@@ -315,7 +315,7 @@ auto parser::parse_enumerated_type(semantic_context const& ctx)
     -> parse_result<ast::enumerated_type> {
     if (auto succ = consume_and_advance_expecting(token_type::l_paren);
         not succ.has_value()) {
-        return std::unexpected(succ.error());
+        return std::unexpected(std::move(succ).error());
     }
     auto idents = parse_many(&parser::parse_identifier, ctx, parse_parameters{
         .separator = token_type::comma,
@@ -330,11 +330,11 @@ auto parser::parse_subrange_type(semantic_context const& ctx)
     -> parse_result<ast::subrange_type> {
     auto begin = parse_constant(ctx);
     if (not begin.has_value()) {
-        return std::unexpected(begin.error());
+        return std::unexpected(std::move(begin).error());
     }
     if (auto succ = consume_and_advance_expecting(token_type::dotdot);
         not succ.has_value()) {
-        return std::unexpected(succ.error());
+        return std::unexpected(std::move(succ).error());
     }
     auto end   = parse_constant(ctx);
     if (not end.has_value()) {
@@ -373,11 +373,11 @@ auto parser::parse_array_type(semantic_context const& ctx)
     // parse maybe packed , array, [
     if (auto succ = consume_and_advance_expecting(token_type::keyword_array);
         not succ.has_value()) {
-        return std::unexpected(succ.error());
+        return std::unexpected(std::move(succ).error());
     }
     if (auto succ = consume_and_advance_expecting(token_type::l_square);
         not succ.has_value()) {
-        return std::unexpected(succ.error());
+        return std::unexpected(std::move(succ).error());
     }
         
     auto indices = parse_many(&parser::parse_type, ctx, parse_parameters{
@@ -391,11 +391,11 @@ auto parser::parse_array_type(semantic_context const& ctx)
 
     if (auto succ = consume_and_advance_expecting(token_type::r_square);
         not succ.has_value()) {
-        return std::unexpected(succ.error());
+        return std::unexpected(std::move(succ).error());
     }
     if (auto succ = consume_and_advance_expecting(token_type::keyword_of);
         not succ.has_value()) {
-        return std::unexpected(succ.error());
+        return std::unexpected(std::move(succ).error());
     }
 
     auto component_type = parse_type(ctx);
@@ -418,7 +418,7 @@ auto parser::parse_argument(semantic_context const& ctx)
         std::nullopt;
     if (auto success = consume_and_advance_expecting(token_type::colon);
         not success.has_value()) {
-        return std::unexpected(success.error());
+        return std::unexpected(std::move(success).error());
     }
     auto type = parse_type(ctx)
         .transform_error(LIFT_MEMBER(push_error))
@@ -436,11 +436,11 @@ auto parser::parse_function_type(semantic_context const& ctx)
     -> parse_result<ast::function_type> {
     if (auto success = consume_and_advance_expecting(token_type::keyword_function);
         not success.has_value()) {
-        return std::unexpected(success.error());
+        return std::unexpected(std::move(success).error());
     }
     if (auto success = consume_and_advance_expecting(token_type::l_paren);
         not success.has_value()) {
-        return std::unexpected(success.error());
+        return std::unexpected(std::move(success).error());
     }
     auto argument_list = parse_many(
         &parser::parse_argument, ctx,
@@ -452,11 +452,11 @@ auto parser::parse_function_type(semantic_context const& ctx)
     );
     if (auto success = consume_and_advance_expecting(token_type::r_paren);
         not success.has_value()) {
-        return std::unexpected(success.error());
+        return std::unexpected(std::move(success).error());
     }
     if (auto success = consume_and_advance_expecting(token_type::colon);
         not success.has_value()) {
-        return std::unexpected(success.error());
+        return std::unexpected(std::move(success).error());
     }
     
     auto return_type = parse_type(ctx)
@@ -542,7 +542,7 @@ auto parser::parse_record_type(semantic_context const& ctx)
     auto fixed_fields = *parse_fixed_part(ctx);
     if (auto success = consume_and_advance_expecting(token_type::keyword_end);
         not success.has_value()) {
-        return std::unexpected(success.error());
+        return std::unexpected(std::move(success).error());
     }
 
     return ast::record_type{

@@ -13,7 +13,12 @@ parser::parser(
     source::full_view source, 
     diagnostics_buffer& buffer
 )
-    : m_lexer(buffer, source), m_diagnostics(buffer) {}
+    : m_lexer(buffer, source)
+    , m_diagnostics(buffer) 
+    , m_hazard_terminators() {
+    m_hazard_terminators.reserve(10);
+    m_hazard_terminators.push_back(token_type::eof);
+}
 
 auto parser::remount(source::full_view view)
     -> void {
@@ -55,10 +60,14 @@ auto parser::consume_and_advance_expecting(token_type token)
         return {};
     }
     else {
-        push_error(parse_error());
-        return std::unexpected(parse_error());
+        return std::unexpected(missing_token(this->cursor().where(), token));
     }
 
+}
+
+auto parser::push_hazard_terminator(token_type token) 
+    -> void {
+    m_hazard_terminators.push_back(token);
 }
 
 } // namespace fed

@@ -9,6 +9,24 @@
 
 namespace fed {
 
+
+class missing_token {
+public:
+    constexpr missing_token(
+        source::location loc, 
+        token_type token
+    ) : m_location(loc), m_token(token) {}
+    constexpr auto location() const noexcept
+        -> source::location { return m_location; }
+    constexpr auto message() const noexcept
+        -> std::string {
+        return "Missing token: '" + to_string(m_token) + "'";
+    }
+private:
+    source::location m_location;
+    token_type       m_token;
+};
+
 class parse_error  {
 public:
     enum class type {

@@ -282,7 +282,7 @@ auto parser::parse_call(semantic_context const& ctx, ast::expression base)
             );
             caller_args.push_back(std::move(*arg_exp));
         } else {
-            diagnostics().push_back(arg_exp.error());
+            diagnostics().push_back(std::move(arg_exp).error());
             caller_args_types.push_back(poison_pill);
             caller_args.push_back(poison_pill);
         }
@@ -334,7 +334,7 @@ auto parser::parse_indexing(semantic_context const& ctx, ast::expression base)
             );
             index_args.push_back(std::move(*arg_exp));
         } else {
-            diagnostics().push_back(arg_exp.error());
+            diagnostics().push_back(std::move(arg_exp).error());
             index_args_types.push_back(poison_pill);
             index_args.push_back(poison_pill);
         }

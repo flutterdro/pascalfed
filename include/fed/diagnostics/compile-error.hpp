@@ -4,6 +4,7 @@
 #include "fed/representations/raw-source.hpp"
 #include "fed/utils/macros.hpp"
 
+#include <fmt/format.h>
 #include <string>
 #include <memory>
 #include <type_traits>
@@ -44,7 +45,14 @@ public:
         : m_error(std::make_unique<error_holder<std::decay_t<T>>>(FWD(error))) {}
 
     constexpr auto message() const
-        -> std::string { return m_error->tp_message(); }
+        -> std::string { 
+        return fmt::format(
+            "error at line {}:{}: {}", 
+            m_error->tp_location().line,
+            m_error->tp_location().column,
+            m_error->tp_message()
+        );
+    }
     constexpr auto location() const
         -> source::location { return m_error->tp_location(); }
 };
