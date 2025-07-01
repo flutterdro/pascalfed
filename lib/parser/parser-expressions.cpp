@@ -102,8 +102,7 @@ auto parser::parse_unary_expression(semantic_context const& ctx)
         .operation = token_to_operation(token),
     };
 }
-inline constexpr auto is_binary_operator = [](token_type type) {
-    return any_of(std::array{
+inline constexpr auto is_binary_operator = any_of(std::array{
             token_type::plus,
             token_type::minus,
             token_type::star,
@@ -119,8 +118,7 @@ inline constexpr auto is_binary_operator = [](token_type type) {
             token_type::equal,
             token_type::less_or_equal_than,
             token_type::greater_or_equal_than,
-    })(type);
-};
+    });
 
 inline constexpr auto binary_operator_precedence = [](token_type type) {
         switch (type) {
