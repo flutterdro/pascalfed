@@ -69,5 +69,15 @@ auto parser::push_hazard_terminator(token_type token)
     -> void {
     m_hazard_terminators.push_back(token);
 }
+auto parser::pop_hazard_terminator()
+    -> void {
+    if (m_hazard_terminators.size() <= 1) 
+        throw internal_error("attempt to excessively pop terminator stack");
+    m_hazard_terminators.pop_back();
+}
+auto parser::hazard_terminators() const noexcept
+    -> token_stack const& {
+    return m_hazard_terminators;
+}
 
 } // namespace fed

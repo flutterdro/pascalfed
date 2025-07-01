@@ -59,17 +59,18 @@ public:
 
 
 struct dummy_error {
-    constexpr dummy_error() = default;
+    constexpr dummy_error(
+        source::location loc,
+        std::string message = "Feelin cute rn, might implement later")
+        : m_location(loc), m_message(std::move(message)) {}
     constexpr auto message() const
-        -> std::string { return {}; }
+        -> std::string { return m_message; }
     constexpr auto location() const
-        -> source::location { return {}; }
-    int val;
+        -> source::location { return m_location; }
+    std::string m_message;
+    source::location m_location;
 };
 
-consteval auto test() {
-    compilation_error(dummy_error{});
-}
 
 // class compilation_error {
 // public:

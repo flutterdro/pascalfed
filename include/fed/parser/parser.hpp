@@ -64,7 +64,7 @@ public:
         -> token_stack const&;
     auto push_hazard_terminator(token_type)
         -> void;
-    auto pop_hazard_terminator(token_type)
+    auto pop_hazard_terminator()
         -> void;
     auto push_error(compilation_error err) 
         -> std::monostate;

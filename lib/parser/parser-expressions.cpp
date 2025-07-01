@@ -1,3 +1,4 @@
+#include "fed/diagnostics/compile-error.hpp"
 #include "fed/diagnostics/internal-error.hpp"
 #include "fed/parser/context.hpp"
 #include "fed/parser/parser.hpp"
@@ -51,9 +52,11 @@ auto parser::parse_expression(
 )   -> parse_result<ast::expression> {
     if (current_token().type() == token_type::l_paren) {
         consume_and_advance();
+        push_hazard_terminator(token_type::r_paren);
         auto lhs = parse_expression(ctx)
             .transform_error(LIFT_MEMBER(push_error))
             .value_or(ctx.synthesize_dummy_expression());
+        pop_hazard_terminator();
         consume_and_advance_expecting(token_type::r_paren);
         // return parse_expression(std::move(lhs), precedence::lowest);
         return lhs;
@@ -149,10 +152,19 @@ auto parser::parse_expression(
     
     auto token = current_token().type();
 
-    // You fucking moron. It accidentally works because of this
-    // When it encounters r_paren it goes up as it should
-    // why did I do this anyway?
-    if (not is_binary_operator(token)) return lhs;
+    // hewwwooooo future me. fix pwease :3?
+    // if it encounters extraneous ')' things will go boom
+    // error recovery won't trigger and it might be stuck in 
+    // an infinite loop
+    if (current_token_is(equal_to(token_type::r_paren))) {
+        return lhs;
+    }
+    if (not is_binary_operator(token)) {
+        return std::unexpected(dummy_error(
+            cursor().where(),
+            "Expected a binary operation"
+        ));
+    }
 
     if (auto new_threshold = binary_operator_precedence(token);
         new_threshold > threshold) {
@@ -275,6 +287,7 @@ auto parser::parse_call(semantic_context const& ctx, ast::expression base)
     auto base_handle       = ast::handle<ast::expression>(std::move(base));
     auto caller_args_types = ast::group<ast::observer_handle<ast::type>>();
     auto caller_args       = ast::group<ast::handle<ast::expression>>();
+    push_hazard_terminator(token_type::r_paren);
     while(true) {
         if (auto arg_exp = parse_expression(ctx)) {
             caller_args_types.push_back(
@@ -293,6 +306,7 @@ auto parser::parse_call(semantic_context const& ctx, ast::expression base)
             consume_and_advance();
             continue;
         } else if (current_token().type() == token_type::r_paren) {
+            pop_hazard_terminator();
             consume_and_advance();
             break;
         } else if (current_token().type() == token_type::semicolon) {
@@ -327,6 +341,7 @@ auto parser::parse_indexing(semantic_context const& ctx, ast::expression base)
     auto base_handle      = ast::handle<ast::expression>(std::move(base));
     auto index_args_types = ast::group<ast::observer_handle<ast::type>>();
     auto index_args       = ast::group<ast::handle<ast::expression>>();
+    push_hazard_terminator(token_type::r_square);
     while(true) {
         if (auto arg_exp = parse_expression(ctx)) {
             index_args_types.push_back(
@@ -345,6 +360,7 @@ auto parser::parse_indexing(semantic_context const& ctx, ast::expression base)
             consume_and_advance();
             continue;
         } else if (current_token().type() == token_type::r_square) {
+            pop_hazard_terminator();
             consume_and_advance();
             break;
         } else if (current_token().type() == token_type::semicolon) {
