@@ -19,11 +19,22 @@ using std::variant;
 using identifier = std::string;
 using identifier_view = std::string_view;
 
-
 template<typename T>
 using group = std::vector<T>;
 template<typename T>
 using maybe = std::optional<T>;
+
+enum class type_id;
+enum class variable_id;
+enum class constant_id;
+enum class function_id;
+enum class procedure_id;
+
+struct type_declaration;
+struct variable_declaration;
+struct constant_declaration;
+struct function_declaration;
+struct procedure_declaration;
 
 struct argument;
 enum class argument_kind;

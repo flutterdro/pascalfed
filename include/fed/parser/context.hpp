@@ -4,6 +4,8 @@
 #include "fed/representations/ast/forward.hpp"
 #include "fed/representations/ast/handle.hpp"
 #include "fed/representations/ast.hpp"
+#include "fed/representations/ast/name-scope.hpp"
+#include "fed/representations/ast/sym-table.hpp"
 #include "fed/representations/symbol-table.hpp"
 #include "fed/parser/semantic-error.hpp"
 #include <expected>
@@ -18,21 +20,61 @@ enum class check_result {
 template<typename T>
 using semantic_result = std::expected<T, contextual_error>;
 class semantic_context {
-    using function_table = symbol_mapback<ast::handle<ast::function_declaration>>;
-    using variable_table = symbol_mapback<ast::handle<ast::variable_declaration>>;
-    using constant_table = symbol_mapback<ast::handle<ast::constant_declaration>>;
-    using type_table     = symbol_mapback<ast::handle<ast::type_declaration>>;
+    // using function_table = symbol_mapback<ast::handle<ast::function_declaration>>;
+    // using variable_table = symbol_mapback<ast::handle<ast::variable_declaration>>;
+    // using constant_table = symbol_mapback<ast::handle<ast::constant_declaration>>;
+    // using type_table     = symbol_mapback<ast::handle<ast::type_declaration>>;
 public:
-    using function_id = function_table::id;
-    using variable_id = variable_table::id;
-    using constant_id = constant_table::id;
-    using type_id     = type_table::id;
+    // using function_id = function_table::id;
+    // using variable_id = variable_table::id;
+    // using constant_id = constant_table::id;
+    // using type_id     = type_table::id;
 
     using type_observer = ast::observer_handle<ast::type>;
+private:
+    semantic_context(
+        ast::symbol_table*, 
+        std::unique_ptr<ast::name_scope>, 
+        bool
+    );
+    
+    template<typename Self>
+    constexpr auto table(this Self&& self) 
+        -> decltype(auto) {
+        if (self.m_table_ptr == nullptr) {
+            throw internal_error(
+                "symbol_table pointer is null "
+                "probably access to moved-from state"
+            );
+        }
+        return *FWD(self).m_table_ptr;
+    }
+    template<typename Self>
+    constexpr auto names(this Self&& self) 
+        -> decltype(auto) {
+        if (self.m_names_ptr == nullptr) {
+            throw internal_error(
+                "name_scope pointer is null "
+                "probably access to moved-from state"
+            );
+        }
+        return *FWD(self).m_names_ptr;
+    }
+public:
+    semantic_context(semantic_context&&) noexcept;
+    semantic_context(semantic_context const&) = delete;
 
+    auto operator=(semantic_context&&) noexcept
+        -> semantic_context&;
+    auto operator=(semantic_context const&)
+        -> semantic_context& = delete;
 
-    semantic_context();
-    semantic_context(semantic_context&&) = default;
+    ~semantic_context() noexcept;
+
+    static auto make_global()
+        -> semantic_context;
+    auto make_local() const noexcept
+        -> semantic_context;
 private:
     auto init_poison_swamp()
         -> void;
@@ -59,41 +101,41 @@ public:
     auto get_poison_type() const 
         -> ast::type_identifier;
     
-    auto get_ast_node(function_id) const
+    auto get_ast_node(ast::function_id) const
         -> ast::observer_handle<ast::function_declaration>;
-    auto get_ast_node(variable_id) const
+    auto get_ast_node(ast::variable_id) const
         -> ast::observer_handle<ast::variable_declaration>;
-    auto get_ast_node(constant_id) const
+    auto get_ast_node(ast::constant_id) const
         -> ast::observer_handle<ast::constant_declaration>;
-    auto get_ast_node(type_id) const
+    auto get_ast_node(ast::type_id) const
         -> ast::observer_handle<ast::type_declaration>;
 
     auto try_get_function_id(ast::identifier_view) const
-        -> ast::maybe<function_id>;
+        -> ast::maybe<ast::function_id>;
     auto try_get_variable_id(ast::identifier_view) const
-        -> ast::maybe<variable_id>;
+        -> ast::maybe<ast::variable_id>;
     auto try_get_type_id(ast::identifier_view) const
-        -> ast::maybe<type_id>;
+        -> ast::maybe<ast::type_id>;
     auto try_get_constant_id(ast::identifier_view) const
-        -> ast::maybe<constant_id>;
+        -> ast::maybe<ast::constant_id>;
 
-    auto type_from_id(function_id) const
+    auto type_from_id(ast::function_id) const
         -> type_observer;
-    auto type_from_id(variable_id) const
+    auto type_from_id(ast::variable_id) const
         -> type_observer;
-    auto type_from_id(type_id) const
+    auto type_from_id(ast::type_id) const
         -> type_observer;
-    auto type_from_id(constant_id) const
+    auto type_from_id(ast::constant_id) const
         -> type_observer;
 
     auto get_integer_id() const 
-        -> type_id;
+        -> ast::type_id;
     auto get_real_id() const
-        -> type_id;
+        -> ast::type_id;
     auto get_bool_id() const
-        -> type_id;
+        -> ast::type_id;
     auto get_char_id() const
-        -> type_id;
+        -> ast::type_id;
 
     auto synthesize_dummy_expression() const
         -> ast::expression;
@@ -166,12 +208,15 @@ public:
     auto sub_types(ast::type const&, ast::type const&) const
         -> semantic_result<type_observer>;
 private:
-    std::unique_ptr<scope> m_root;
-    scope* m_current_scope;
-    function_table m_functions;
-    variable_table m_variables;
-    constant_table m_constants;
-    type_table     m_types;
+    ast::symbol_table*               m_table_ptr;
+    std::unique_ptr<ast::name_scope> m_names_ptr;
+    bool                             m_is_global;
+    // std::unique_ptr<scope> m_root;
+    // scope* m_current_scope;
+    // function_table m_functions;
+    // variable_table m_variables;
+    // constant_table m_constants;
+    // type_table     m_types;
 };
 } // namespace fed
 #endif

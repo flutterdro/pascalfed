@@ -10,6 +10,8 @@ target_sources(fed_representations
         representations/ast/pretty-print.cpp
         representations/ast/compare.cpp
         representations/ast/clone.cpp
+        representations/ast/name-scope.cpp
+        representations/ast/sym-table.cpp
 )
 
 

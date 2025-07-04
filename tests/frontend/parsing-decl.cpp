@@ -27,7 +27,7 @@ using first = typename first_t<Ts...>::type;
 TEST_CASE("Parsing type declarations", "[frontend][parsing]") {
     using namespace fed;
     auto diagnostics = fed::diagnostics_buffer();
-    auto ctx         = fed::semantic_context();
+    auto ctx         = make_default_context();
     auto int_ident   = fed::ast::type_identifier(ctx.get_integer_id());
     auto int_type_handle = [&](){ return ast::handle(ast::type(auto(int_ident))); };
     auto int_type = [&](){ return fed::ast::type(auto(int_ident)); };

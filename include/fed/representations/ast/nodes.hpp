@@ -27,10 +27,12 @@ namespace fed {
 }
 namespace fed::ast {
 
+enum class type_id      { poison = 0, };
+enum class variable_id  { poison = 0, };
+enum class constant_id  { poison = 0, };
+enum class function_id  { poison = 0, };
+enum class procedure_id { poison = 0, };
 
-
-struct type_declaration;
-using type_id = symbol_mapback<handle<type_declaration>>::id;
 struct type_identifier {
     type_id id;
 };
@@ -65,7 +67,6 @@ struct constant_declaration {
     identifier name;
     handle<constant> constant;
 };
-using constant_id = symbol_mapback<ast::handle<constant_declaration>>::id;
 
 enum class type_builtin { integer = 1, boolean, real, character, };
 
@@ -162,6 +163,14 @@ struct enum_constant {
     observer_handle<type> type;
     int ord_value;
 };
+struct function_constant {
+    observer_handle<type> type;
+    function_id id;
+};
+struct procedure_constant {
+    observer_handle<type> type;
+    procedure_id id;
+};
 struct constant_name {
     observer_handle<type> type;
     constant_id id;
@@ -176,7 +185,6 @@ struct string_literal {
     std::string value;
 };
 
-using variable_declaration_handle = handle<variable_declaration>;
 
 struct block {
     source::view region;
@@ -187,47 +195,19 @@ struct block {
 
 };
 
-struct formal_parameter_simple {
-    bool is_variable;
-    group<handle<identifier>> names;
-    handle<identifier> type;
-};
 
 struct function_heading;
 struct procedure_heading;
 
-using formal_parameter = 
-    std::variant<formal_parameter_simple, function_heading, procedure_heading>;
-
-
-
-struct function_heading {
-    handle<identifier> name;
-    std::optional<group<handle<formal_parameter>>> formal_parametr_list;
-    handle<type> return_type;
-};
-
 struct function_declaration {
+    identifier   name;
     handle<type> type;
     handle<block> body;
 };
-using function_declaration_handle = handle<function_declaration>;
-
-struct procedure_heading {
-    handle<identifier> name;
-    std::optional<group<handle<formal_parameter>>> formal_parametr_list;
-    handle<identifier> return_type;
-};
-
 
 struct procedure_declaration {
-    handle<procedure_heading> head;
-    std::optional<handle<block>> body;
+    identifier name;
 };
-
-
-
-
 
 struct program {
     source::view region;
@@ -281,9 +261,6 @@ struct unary_expression {
 };
 
 
-using function_id = symbol_mapback<ast::handle<function_declaration>>::id;
-using variable_id = symbol_mapback<ast::handle<variable_declaration>>::id;
-using constant_id = symbol_mapback<ast::handle<constant_declaration>>::id;
 template<typename IdT>
 struct name_from_id;
 template<>

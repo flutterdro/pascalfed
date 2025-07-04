@@ -127,12 +127,6 @@ public:
 
     auto parse_identifier(semantic_context const&)
         -> parse_result<ast::identifier>;
-    auto parse_formal_parameter_list()
-        -> parse_result<ast::group<ast::handle<ast::formal_parameter>>>;
-    auto parse_formal_parameter()
-        -> parse_result<ast::handle<ast::formal_parameter>>;
-    auto parse_formal_parameter_simple()
-        -> parse_result<ast::handle<ast::formal_parameter_simple>>;
     auto parse_function_declaration()
         -> parse_result<ast::handle<ast::function_declaration>>;
     auto parse_function_heading()

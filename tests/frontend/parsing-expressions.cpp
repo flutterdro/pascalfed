@@ -14,48 +14,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <fmt/core.h>
 
+#include "commons.hpp"
 
 //
-auto create_test_context() {
-    auto result = fed::semantic_context();
-    auto add_variable = [&result](char letter) {
-        auto err = result.add_variable({
-            .name = fed::ast::identifier{letter, 'v'},
-            .type = fed::poison_pill,
-        });
-        if (not err.has_value()) {
-            throw fed::internal_error("error while creating test parse context");
-        }
-    };
-    auto add_constant = [&result](char letter) {
-        auto err = result.add_constant({
-            .name = fed::ast::identifier{letter, 'c'},
-            .constant = fed::poison_pill,
-        });
-        if (not err.has_value()) {
-            throw fed::internal_error("error while creating test parse context");
-        }
-    };
-    for (auto c = 'a'; c <= 'z'; ++c) {
-        add_variable(c);
-        add_constant(c);
-    }
-}
-auto alphabet_context() 
-    -> fed::semantic_context {
-    auto context = fed::semantic_context();
-    auto add_letter = [&context](char letter) {
-        context.add_variable({ // NOLINT
-            .name = fed::ast::identifier(1, letter),
-            // type is poisoned to disable type checking
-            .type = fed::poison_pill,
-        });
-    };
-    for (auto c = 'a'; c <= 'z'; ++c) {
-        add_letter(c);
-    }
-    return context;
-}
+
 constexpr auto alphabet = []<std::size_t... Is>(std::index_sequence<Is...>) 
     -> std::array<fed::ast::variable_name, 26> {
     return {
@@ -101,7 +63,7 @@ TEST_CASE("Parsing expression atom", "[frontend][parsing]"){
     using namespace fed;
     SECTION("Integer literal") {
         auto diagnostics = fed::diagnostics_buffer();
-        auto ctx = alphabet_context();
+        auto ctx = make_alphabet_context();
         auto parser = fed::parser(
             fed::source::full_view("12312333"), 
             diagnostics
@@ -121,9 +83,9 @@ TEST_CASE("Parsing binary expressions", "[frontend][parsing]") {
     try {
         SECTION("Left-associativity") {
             auto diagnostics = fed::diagnostics_buffer();
-            auto const ctx = alphabet_context();
+            auto const ctx = make_alphabet_context();
             auto parser = fed::parser(
-                fed::source::full_view("a + b + c + d + e"), 
+                fed::source::full_view("av + bv + cv + dv + ev"), 
                 diagnostics
             );
             auto expected = make_binary_expression(ast::binary_operation::add, 'a', 'b');
@@ -143,9 +105,9 @@ TEST_CASE("Parsing binary expressions", "[frontend][parsing]") {
         }
         SECTION("Precedence") {
             auto diagnostics = fed::diagnostics_buffer();
-            auto ctx = alphabet_context();
+            auto ctx = make_alphabet_context();
             auto parser = fed::parser(
-                fed::source::full_view("f >= a + b * (c + d < e) * k <> j"), 
+                fed::source::full_view("fv >= av + bv * (cv + dv < ev) * kv <> jv"), 
                 diagnostics
             );
             auto expected = 

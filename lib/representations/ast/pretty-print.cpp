@@ -128,7 +128,7 @@ auto fmt::formatter<ast::function_name>::format(
     fmt::format_context& ctx
 ) const -> fmt::format_context::iterator {
     ctx.out() = indentable::indent(ctx);
-    return fmt::format_to(ctx.out(), "to be implemented");
+    return fmt::format_to(ctx.out(), "function: to be implemented");
 }
 
 auto fmt::formatter<ast::constant>::format(
@@ -136,7 +136,7 @@ auto fmt::formatter<ast::constant>::format(
     fmt::format_context& ctx
 ) const -> fmt::format_context::iterator {
     ctx.out() = indentable::indent(ctx);
-    return fmt::format_to(ctx.out(), "to be implemented");
+    return fmt::format_to(ctx.out(), "constant: to be implemented");
 }
 
 auto fmt::formatter<ast::type>::format(

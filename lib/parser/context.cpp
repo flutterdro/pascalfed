@@ -3,7 +3,9 @@
 #include "fed/representations/ast.hpp"
 #include "fed/representations/ast/forward.hpp"
 #include "fed/representations/ast/handle.hpp"
+#include "fed/representations/ast/name-scope.hpp"
 #include "fed/representations/ast/nodes.hpp"
+#include "fed/representations/ast/sym-table.hpp"
 #include "fed/representations/symbol-table.hpp"
 #include "fed/utils/predicates.hpp"
 #include "fed/utils/superutil.hpp"
@@ -24,11 +26,56 @@ namespace fed {
 constexpr auto const integer_min = std::numeric_limits<int>::min();
 constexpr auto const integer_max = std::numeric_limits<int>::max();
 
-semantic_context::semantic_context() 
-    : m_root(std::make_unique<scope>()){
-    m_current_scope = m_root.get();
-    init_poison_swamp();
-    init_builtin_types();
+semantic_context::semantic_context(
+    ast::symbol_table* table, 
+    std::unique_ptr<ast::name_scope> names, 
+    bool is_global
+)   : m_table_ptr(table)
+    , m_names_ptr(std::move(names))
+    , m_is_global(is_global) {}
+semantic_context::semantic_context(semantic_context&& ctx) noexcept
+    : m_table_ptr(ctx.m_table_ptr)
+    , m_names_ptr(std::move(ctx.m_names_ptr))
+    , m_is_global(ctx.m_is_global) {
+    ctx.m_table_ptr = nullptr;
+    ctx.m_is_global = false;
+}
+auto semantic_context::operator=(semantic_context&& ctx) noexcept
+    -> semantic_context& {
+    m_table_ptr = ctx.m_table_ptr;
+    m_names_ptr = std::move(ctx.m_names_ptr);
+    m_is_global = ctx.m_is_global;
+    ctx.m_table_ptr = nullptr;
+    ctx.m_is_global = false;
+
+    return *this;
+}
+semantic_context::~semantic_context() noexcept {
+    if (m_is_global) {
+        delete m_table_ptr;
+    }
+}
+
+auto semantic_context::make_global()
+    -> semantic_context {
+    auto ctx = semantic_context(
+        new ast::symbol_table(),
+        std::make_unique<ast::name_scope>(),
+        true
+    );
+    ctx.init_poison_swamp();
+    ctx.init_builtin_types();
+    // ctx.init_builtin_constants();
+
+    return ctx;
+}
+auto semantic_context::make_local() const noexcept
+    -> semantic_context {
+    return semantic_context(
+        m_table_ptr,
+        names().spawn(),
+        false
+    );
 }
 
 auto semantic_context::init_poison_swamp()
@@ -81,64 +128,67 @@ auto semantic_context::init_builtin_types()
 }
 
 auto semantic_context::try_get_type_id(std::string_view name) const
-    -> std::optional<type_id> {
-    return m_current_scope->lookup(name)
-        .and_then([&](symbol sym) 
-            -> std::optional<type_id> {
-            if (sym.type != symbol_type::type) return std::nullopt;
-            return static_cast<type_id>(sym.id);
+    -> std::optional<ast::type_id> {
+    return names().lookup(name)
+        .and_then([&](ast::tagged_id sym) 
+            -> std::optional<ast::type_id> {
+            if (sym.kind != ast::symbol_kind::type) return std::nullopt;
+            return static_cast<ast::type_id>(sym.id);
         });
 }
 auto semantic_context::get_integer_id() const
-    -> type_id { return type_id{1}; }
+    -> ast::type_id { return ast::type_id{1}; }
 auto semantic_context::get_real_id() const
-    -> type_id { return type_id{2}; }
+    -> ast::type_id { return ast::type_id{2}; }
 auto semantic_context::get_bool_id() const
-    -> type_id { return type_id{4}; }
+    -> ast::type_id { return ast::type_id{4}; }
 auto semantic_context::get_char_id() const
-    -> type_id { return type_id{3}; }
+    -> ast::type_id { return ast::type_id{3}; }
 auto semantic_context::add_type(ast::type_declaration type_decl) 
     -> semantic_result<void> {
-     if (not m_current_scope->is_free_real_estate(type_decl.name)) {
-        return std::unexpected(contextual_error());
+    auto const [is_success, it] = names().insert(
+        type_decl.name, 
+        {
+            .id = 0,
+            .kind = ast::symbol_kind::type, 
+        }
+    );
+    if (is_success) {
+        auto const id = table().add(std::move(type_decl));
+        it->second.id = std::to_underlying(id);
     }
-    auto const id = m_types.id_to_be();
-    m_current_scope->add_symbol(type_decl.name, 
-        symbol{
-            .id = fed::strip(id),
-            .type = symbol_type::type,
-    });  
-    m_types.add_symbol(std::move(type_decl));   
     return {};
 }
 
 auto semantic_context::add_constant(ast::constant_declaration const_decl)
     -> semantic_result<void> { 
-    if (not m_current_scope->is_free_real_estate(const_decl.name)) {
-        return std::unexpected(contextual_error());
+    auto const [is_success, it] = names().insert(
+        const_decl.name, 
+        {
+            .id = 0,
+            .kind = ast::symbol_kind::constant,
+        }
+    );
+    if (is_success) {
+        auto const id = table().add(std::move(const_decl));
+        it->second.id = std::to_underlying(id);
     }
-    auto const id = m_constants.id_to_be();
-    m_current_scope->add_symbol(const_decl.name, 
-        symbol{
-            .id = fed::strip(id),
-            .type = symbol_type::constant,
-    });  
-    m_constants.add_symbol(std::move(const_decl));
 
     return {};
 }
 auto semantic_context::add_variable(ast::variable_declaration var_decl)
     -> semantic_result<void> {
-    if (not m_current_scope->is_free_real_estate(var_decl.name)) {
-        return std::unexpected(contextual_error());
+    auto const [is_success, it] = names().insert(
+        var_decl.name, 
+        {
+            .id = 0,
+            .kind = ast::symbol_kind::variable, 
+        }
+    );
+    if (is_success) {
+        auto const id = table().add(std::move(var_decl));
+        it->second.id = std::to_underlying(id);
     }
-    auto const id = m_variables.id_to_be();
-    m_current_scope->add_symbol(var_decl.name, 
-        symbol{
-            .id = fed::strip(id),
-            .type = symbol_type::variable,
-    });  
-    m_variables.add_symbol(std::move(var_decl));
     
     return {};   
 }
@@ -146,8 +196,8 @@ auto semantic_context::add_variable(ast::variable_declaration var_decl)
 auto semantic_context::synthesize_dummy_expression() const
     -> ast::expression {
     return ast::constant_name{
-        .type = type_from_id(type_id::poison),
-        .id   = constant_id::poison,
+        .type = type_from_id(ast::type_id::poison),
+        .id   = ast::constant_id::poison,
     };
 }
 
@@ -282,55 +332,55 @@ auto semantic_context::match_types(type_observer type1,  type_observer type2) co
 //
 
 auto semantic_context::try_get_variable_id(ast::identifier_view name) const
-    -> ast::maybe<variable_id> {
-    return m_current_scope->lookup(name).and_then([](symbol sym) 
-        -> ast::maybe<variable_id> {
-        if (sym.type != symbol_type::variable) return std::nullopt;
-        return static_cast<variable_id>(sym.id);
+    -> ast::maybe<ast::variable_id> {
+    return names().lookup(name).and_then([](ast::tagged_id sym) 
+        -> ast::maybe<ast::variable_id> {
+        if (sym.kind != ast::symbol_kind::variable) return std::nullopt;
+        return static_cast<ast::variable_id>(sym.id);
     });
 }
 auto semantic_context::try_get_function_id(ast::identifier_view name) const
-    -> ast::maybe<function_id> {
-    return m_current_scope->lookup(name).and_then([](symbol sym) 
-        -> ast::maybe<function_id> {
-        if (sym.type != symbol_type::function) return std::nullopt;
-        return static_cast<function_id>(sym.id);
+    -> ast::maybe<ast::function_id> {
+    return names().lookup(name).and_then([](ast::tagged_id sym) 
+        -> ast::maybe<ast::function_id> {
+        if (sym.kind != ast::symbol_kind::function) return std::nullopt;
+        return static_cast<ast::function_id>(sym.id);
     });
 }
 auto semantic_context::try_get_constant_id(ast::identifier_view name) const
-    -> ast::maybe<constant_id> {
-    return m_current_scope->lookup(name).and_then([](symbol sym) 
-        -> ast::maybe<constant_id> {
-        if (sym.type != symbol_type::constant) return std::nullopt;
-        return static_cast<constant_id>(sym.id);
+    -> ast::maybe<ast::constant_id> {
+    return names().lookup(name).and_then([](ast::tagged_id sym) 
+        -> ast::maybe<ast::constant_id> {
+        if (sym.kind != ast::symbol_kind::constant) return std::nullopt;
+        return static_cast<ast::constant_id>(sym.id);
     });
 }
 
-auto semantic_context::get_ast_node(variable_id id) const
+auto semantic_context::get_ast_node(ast::variable_id id) const
     -> ast::observer_handle<ast::variable_declaration> {
-    return m_variables.lookup(id);
+    return table().get(id);
 }
-auto semantic_context::get_ast_node(function_id id) const 
+auto semantic_context::get_ast_node(ast::function_id id) const 
     -> ast::observer_handle<ast::function_declaration> {
-    return m_functions.lookup(id);
+    return table().get(id);
 }
-auto semantic_context::get_ast_node(constant_id id) const 
+auto semantic_context::get_ast_node(ast::constant_id id) const 
     -> ast::observer_handle<ast::constant_declaration> {
-    return m_constants.lookup(id);
+    return table().get(id);
 }
 
-auto semantic_context::get_ast_node(type_id id) const
+auto semantic_context::get_ast_node(ast::type_id id) const
     -> ast::observer_handle<ast::type_declaration> {
-    return m_types.lookup(id);
+    return table().get(id);
 }
 
-auto semantic_context::type_from_id(variable_id id) const
+auto semantic_context::type_from_id(ast::variable_id id) const
     -> type_observer {
     return get_ast_node(id).and_then(
         [](ast::variable_declaration const& decl) -> type_observer { return decl.type; }
     );
 }
-auto semantic_context::type_from_id(constant_id id) const
+auto semantic_context::type_from_id(ast::constant_id id) const
     -> type_observer {
     fmt::println("bad id:{}", std::to_underlying(id));
     return get_ast_node(id).and_then(
@@ -339,14 +389,14 @@ auto semantic_context::type_from_id(constant_id id) const
         }
     );
 }
-auto semantic_context::type_from_id(function_id id) const
+auto semantic_context::type_from_id(ast::function_id id) const
     -> type_observer {
     return get_ast_node(id).and_then(
         [](ast::function_declaration const& decl) -> type_observer { return decl.type; }
     );
 }
 
-auto semantic_context::type_from_id(type_id id) const
+auto semantic_context::type_from_id(ast::type_id id) const
     -> type_observer {
     return get_ast_node(id).and_then(
         [](ast::type_declaration const& decl) -> type_observer { return decl.type; }

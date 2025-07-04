@@ -15,12 +15,12 @@ consteval auto operator""_fv(char const* literal, std::size_t)
 
 inline auto make_default_context()
     -> fed::semantic_context {
-    return fed::semantic_context();
+    return fed::semantic_context::make_global();
 }
 
 inline auto make_alphabet_context() 
     -> fed::semantic_context {
-    auto context = fed::semantic_context();
+    auto context = fed::semantic_context::make_global();
     auto add_variable = [](fed::semantic_context& ctx, char c) {
         auto success = ctx.add_variable(fed::ast::variable_declaration{
             .name = ""s + c + 'v',
