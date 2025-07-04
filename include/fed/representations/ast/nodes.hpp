@@ -5,7 +5,6 @@
 #include "fed/representations/raw-source.hpp"
 #include "fed/representations/ast/handle.hpp"
 #include "fed/representations/ast/forward.hpp"
-#include "fed/representations/symbol-table.hpp"
 #include "fed/utils/superutil.hpp"
 
 #include <cstddef>

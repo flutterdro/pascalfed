@@ -6,7 +6,6 @@
 #include "fed/representations/ast/name-scope.hpp"
 #include "fed/representations/ast/nodes.hpp"
 #include "fed/representations/ast/sym-table.hpp"
-#include "fed/representations/symbol-table.hpp"
 #include "fed/utils/predicates.hpp"
 #include "fed/utils/superutil.hpp"
 #include <__expected/unexpected.h>

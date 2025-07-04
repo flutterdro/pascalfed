@@ -2,7 +2,6 @@
 #define FED_SEMANTIC_ERRORS_HPP_
 
 #include "fed/representations/raw-source.hpp"
-#include "fed/representations/symbol-table.hpp"
 #include <format>
 
 namespace fed {

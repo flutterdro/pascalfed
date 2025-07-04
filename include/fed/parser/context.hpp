@@ -6,7 +6,6 @@
 #include "fed/representations/ast.hpp"
 #include "fed/representations/ast/name-scope.hpp"
 #include "fed/representations/ast/sym-table.hpp"
-#include "fed/representations/symbol-table.hpp"
 #include "fed/parser/semantic-error.hpp"
 #include <expected>
 #include <memory>
@@ -20,16 +19,7 @@ enum class check_result {
 template<typename T>
 using semantic_result = std::expected<T, contextual_error>;
 class semantic_context {
-    // using function_table = symbol_mapback<ast::handle<ast::function_declaration>>;
-    // using variable_table = symbol_mapback<ast::handle<ast::variable_declaration>>;
-    // using constant_table = symbol_mapback<ast::handle<ast::constant_declaration>>;
-    // using type_table     = symbol_mapback<ast::handle<ast::type_declaration>>;
 public:
-    // using function_id = function_table::id;
-    // using variable_id = variable_table::id;
-    // using constant_id = constant_table::id;
-    // using type_id     = type_table::id;
-
     using type_observer = ast::observer_handle<ast::type>;
 private:
     semantic_context(
