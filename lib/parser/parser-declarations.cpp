@@ -2,6 +2,7 @@
 #include "fed/parser/parser.hpp"
 #include "fed/diagnostics/internal-error.hpp"
 #include "fed/parser/parse_error.hpp"
+#include "fed/parser/parser-helpers.hpp"
 #include "fed/representations/ast.hpp"
 #include "fed/representations/ast/forward.hpp"
 #include "fed/representations/ast/nodes.hpp"
@@ -11,233 +12,52 @@
 #include "fed/utils/superutil.hpp"
 #include "fed/diagnostics/buffer.hpp"
 
-#include <__expected/unexpected.h>
 #include <boost/charconv/chars_format.hpp>
 #include <boost/charconv/from_chars.hpp>
 
 #include <algorithm>
-#include <charconv>
 #include <fmt/base.h>
-#include <initializer_list>
 #include <iterator>
 #include <optional>
-#include <thread>
-#include <type_traits>
 #include <utility>
-#include <variant>
 
-// using fed::ast::handle;
-//
 namespace fed {
-//
-//
-// // I kind of miss rust's operator ?
-// #define TRY(dest, exp) \
-// do {auto exp2 = exp;\
-// if (not exp2.has_value()) return std::unexpected{std::move(exp2.error())}; \
-// dest = std::move(exp2.value());} while(false)
-// #define TRY_OPT(opt) \
-// if (opt.has_value()) return std::unexpected{std::move(*opt)};
-//
-// using list_of_terminals = std::initializer_list<token_type>;
-// template<typename SymbolT>
-// using parse_function_ptr = auto (parser::*)() -> parse_result<handle<SymbolT>>;
-// template<typename SymbolT>
-// constexpr auto parse_group_of_symbols(
-//     parser& parser, 
-//     parse_function_ptr<SymbolT> symbol_parse_function,
-//     list_of_terminals terminals,
-//     token_type separator
-// ) -> parse_result<ast::group<handle<SymbolT>>> {
-//     auto result = ast::group<handle<SymbolT>>{};
-//
-//     auto const start = parser.cursor();
-//
-//     {
-//         auto element = handle<SymbolT>{};
-//         TRY(element, (parser.*symbol_parse_function)());
-//         result.push_back(std::move(element));
-//     }
-//
-//     // while (stdr::none_of(terminals, func::equal_to(parser.current_token().type()))) {
-//     //     auto const end = parser.cursor();
-//     //     if (separator != token_type::empty and
-//     //         parser.consume_and_advance().type() != separator) {
-//     //         return std::unexpected(
-//     //             parse_error(
-//     //                 end.where(), source::view(start, end), 
-//     //                 parse_error::type::missing_token,
-//     //                 separator
-//     //             )
-//     //         );
-//     //     }
-//     //     
-//     //     auto element = handle<SymbolT>{};
-//     //     TRY(element, (parser.*symbol_parse_function)());
-//     //     result.push_back(std::move(element));
-//     // }
-//
-//     
-//     return result;
-// }
-//
-// template<typename SymbolT>
-// auto parse_maybe(parser& parser, parse_function_ptr<SymbolT> func, token_type trigger)
-//     -> parse_result<std::optional<handle<SymbolT>>> {
-//     if (parser.current_token().type() != trigger) return std::nullopt;
-//
-//     return (parser.*func)();
-// }
-//
-//
-// // program = program-heading ';' block
-// auto parser::parse_program()
-//     -> parse_result<handle<ast::program>> {
-//     // std::expected inhibits rvo
-//     // for now I don't give a fuck about perfomance
-//     // could be an issue later
-//     auto result = ast::program{};
-//     auto const program_view_start = cursor();
-//
-//     TRY(result.head, parse_program_heading());
-//     
-//     auto const program_head_end = cursor();
-//     if (consume_and_advance().type() != token_type::semicolon) {
-//         return std::unexpected(
-//             parse_error(
-//                 program_head_end.where(), 
-//                 source::view(program_view_start, program_head_end),
-//                 parse_error::type::missing_token,
-//                 token_type::semicolon
-//             )
-//         );
-//     }
-//     
-//     TRY(result.body, parse_block());
-//     
-//     result.region = source::view(program_view_start, cursor());
-//
-//     return result;
-// }
-//
-// // program-heading = 'program' identifier ['(' identifier-list ')']
-// auto parser::parse_program_heading()
-//     -> parse_result<handle<ast::program_heading>> {
-//     auto result = ast::program_heading{};
-//
-//     if (auto is_success = 
-//         consume_and_advance_expecting(token_type::keyword_program)) {
-//         return std::unexpected(*is_success);
-//     }
-//
-//     TRY(result.name, parse_identifier());
-//
-//     if (m_lexer.lex_next_token().m_type != token_type::l_paren) {
-//         result.externals = std::nullopt;
-//         return result;
-//     }
-//     m_lexer.advance_lexer();
-//
-//     // TRY(
-//     //     result.externals, 
-//     //     parse_group_of_symbols(
-//     //         *this, 
-//     //         &parser::parse_identifier, 
-//     //         {token_type::r_paren}, 
-//     //         token_type::comma
-//     //     )
-//     // );
-//
-//     return result;
-// }
-//
-// // block = label-declaration-part constant-definition-part
-// //         type-definition-part variable-declaration-part
-// //         procedure-and-function-declaration-part statement-part
-// auto parser::parse_block()
-//     -> parse_result<handle<ast::block>> {
-//     auto result = ast::block{};
-//     // m_context.initialize_scope();
-//     //
-//     // if (current_token().type() == token_type::keyword_label) {
-//     //     consume_and_advance();
-//     //     auto labels = ast::label_declaration{};
-//     //     TRY(labels.labels, parse_group_of_symbols(
-//     //         *this,
-//     //         &parser::parse_identifier,
-//     //         {token_type::semicolon}, 
-//     //         token_type::comma
-//     //     ));
-//     //     result.label_declaration_part = std::move(labels);
-//     // }
-//     //
-//     // if (current_token().type() == token_type::keyword_type) {
-//     //     
-//     // }
-//     //
-//     // m_context.finalize_scope();
-//
-//     return result;
-//     
-// }
-//
-// /// CONSTANT DECLARATION PARSING 
-//
-// auto parser::parse_constant()
-//     -> parse_result<handle<ast::constant>> {
-//     // if sign is specified then constant is treated as a signed number_integer
-//     auto result = handle<ast::constant>();
-//     auto is_signed = 
-//         current_token().type() == token_type::minus;
-//     // if (is_signed) consume_and_advance();
-//     // 
-//     // auto const constant_token = current_token();
-//     // // FUCK IT 
-//     // // TODO: proper check for number validity
-//     // if (constant_token.type() == token_type::number_integer) {
-//     //     auto num_view = constant_token.view();
-//     //     auto num = unsigned();
-//     //     std::from_chars(num_view.data(), num_view.data() + num_view.size(), num);
-//     //     if (is_signed) {
-//     //         result = -static_cast<int>(num);
-//     //     } else {
-//     //         result = static_cast<int>(num);
-//     //     }
-//     // } else if (constant_token.type() == token_type::number_real) {
-//     //     auto num_view = constant_token.view();
-//     //     auto num = double();
-//     //     // I am losing my fucking mind
-//     //     // clang doesn't support fp from_chars 
-//     //     // IT IS IN GTEH FUCKIGN C++17. 
-//     //     // I had to pull boost in (frankly because I am too lazy to search 
-//     //     // for the alternatives but still...) 
-//     //     boost::charconv::from_chars(
-//     //         num_view.data(), num_view.data() + num_view.size(), 
-//     //         num, boost::charconv::chars_format::general
-//     //     );
-//     //     result = is_signed ? -num : num;
-//     // } else if (constant_token.type() == token_type::identifier) {
-//     //     auto origin_const_exp = m_context.lookup_constant(constant_token.view().base());
-//     //     if (not origin_const_exp.has_value()) {
-//     //         m_diagnostics.push_back(origin_const_exp.error());
-//     //     }
-//     //     auto origin_const = m_context.lookup(*origin_const_exp);
-//     //     std::visit(overloaded{
-//     //         [&](sym::poison_t const&) { result.poison(); },
-//     //         [&](auto const& val) { result = val; }
-//     //     }, origin_const);
-//     // } else if (constant_token.type() == token_type::literal) {
-//     //     result = constant_token
-//     //         .view()
-//     //         .subview(1, constant_token.view().size() - 2)
-//     //         .base();
-//     // }
-//     //
-//     return result;
-// }
+// context is created outside the block and then moved in
+auto parser::parse_block(semantic_context ctx)
+    -> parse_result<ast::block> {
+    if (current_token_is(equal_to(token_type::keyword_const))) {
+
+    }
+    if (current_token_is(equal_to(token_type::keyword_type))) {
+        // parse_type_definitions(ctx);
+    }
+    
+    
+}
 //
 /// TYPE DECLARATION PARSING
 
+auto parser::parse_type_definitions(semantic_context& ctx)
+    -> parse_result<void> {
+    while (true) {
+        using enum token_type;
+        auto termination_tokens = std::array{
+            keyword_var, keyword_begin,
+            keyword_function, keyword_procedure
+        };
+        if (current_token_is(any_of(termination_tokens))) {
+            break;
+        }
+        auto is_succ = parse_type_definition(ctx);
+        if (is_succ) {
+            auto _ = ctx.add_type(std::move(*is_succ))
+                .transform_error(LIFT_MEMBER(push_error));
+        } else {
+            return {};
+        }
+        TRY_PARSE_TOKEN(token_type::semicolon);
+    }
+}
 auto parser::parse_type_definition(semantic_context& ctx)
     -> parse_result<ast::type_declaration> {
     auto identifier_exp = parse_identifier(ctx);
@@ -328,22 +148,11 @@ auto parser::parse_enumerated_type(semantic_context const& ctx)
 }
 auto parser::parse_subrange_type(semantic_context const& ctx)
     -> parse_result<ast::subrange_type> {
-    auto begin = parse_constant(ctx);
-    if (not begin.has_value()) {
-        return std::unexpected(std::move(begin).error());
-    }
-    if (auto succ = consume_and_advance_expecting(token_type::dotdot);
-        not succ.has_value()) {
-        return std::unexpected(std::move(succ).error());
-    }
-    auto end   = parse_constant(ctx);
-    if (not end.has_value()) {
-        return std::unexpected(parse_error());
-    }
-    return ast::subrange_type{
-        .begin = *begin,
-        .end   = *end,
-    };
+    using enum token_type;
+    return chain_parse(
+        ctx, default_action<ast::subrange_type>(*this),
+        &parser::parse_constant, dotdot, &parser::parse_constant
+    );
 }
 auto parser::parse_type_identifier(semantic_context const& ctx)
     -> parse_result<ast::type_identifier> {
@@ -369,44 +178,29 @@ auto parser::parse_pointer_type(semantic_context const& ctx)
 
 auto parser::parse_array_type(semantic_context const& ctx) 
     -> parse_result<ast::array_type> {
-     
-    // parse maybe packed , array, [
-    if (auto succ = consume_and_advance_expecting(token_type::keyword_array);
-        not succ.has_value()) {
-        return std::unexpected(std::move(succ).error());
-    }
-    if (auto succ = consume_and_advance_expecting(token_type::l_square);
-        not succ.has_value()) {
-        return std::unexpected(std::move(succ).error());
-    }
-        
-    auto indices = parse_many(&parser::parse_type, ctx, parse_parameters{
-        .separator = token_type::comma,
-        .success_terminators = {token_type::r_square},
-        .hazard_terminators  = {
-            token_type::keyword_of, token_type::semicolon,
-            token_type::keyword_end, token_type::r_paren,
-        },
-    }); 
-
-    if (auto succ = consume_and_advance_expecting(token_type::r_square);
-        not succ.has_value()) {
-        return std::unexpected(std::move(succ).error());
-    }
-    if (auto succ = consume_and_advance_expecting(token_type::keyword_of);
-        not succ.has_value()) {
-        return std::unexpected(std::move(succ).error());
-    }
-
-    auto component_type = parse_type(ctx);
-
-    return ast::array_type{
-        .index_types = std::move(indices),
-        .component_type = std::move(component_type)
-            .transform(construct<ast::handle<ast::type>>)
-            .value_or(poison_pill),
+    auto action = [this](
+        ast::group<ast::handle<ast::type>> indices,
+        parse_result<ast::type> component_type
+    ) {
+        return ast::array_type{
+            .index_types = std::move(indices),
+            .component_type = std::move(component_type)
+                .transform_error(LIFT_MEMBER(push_error))
+                .transform(construct<ast::handle<ast::type>>)
+                .value_or(poison_pill)
+        };
     };
-}
+    using enum token_type;
+    auto parse_type_list = [](auto&& parser, semantic_context const& ctx) {
+        return parser.some_parse(ctx, &parser::parse_type, comma);
+    };
+
+    return chain_parse(
+        ctx, action,
+        keyword_array, l_square, parse_type_list, r_square,
+        keyword_of, &parser::parse_type
+    );
+ }
 
 auto parser::parse_argument(semantic_context const& ctx)
     -> parse_result<ast::argument> {
@@ -434,40 +228,24 @@ auto parser::parse_argument(semantic_context const& ctx)
 
 auto parser::parse_function_type(semantic_context const& ctx)
     -> parse_result<ast::function_type> {
-    if (auto success = consume_and_advance_expecting(token_type::keyword_function);
-        not success.has_value()) {
-        return std::unexpected(std::move(success).error());
-    }
-    if (auto success = consume_and_advance_expecting(token_type::l_paren);
-        not success.has_value()) {
-        return std::unexpected(std::move(success).error());
-    }
-    auto argument_list = parse_many(
-        &parser::parse_argument, ctx,
-        parse_parameters{
-            .separator = token_type::comma,
-            .success_terminators = {token_type::r_paren},
-            .hazard_terminators  = {}
-        }
-    );
-    if (auto success = consume_and_advance_expecting(token_type::r_paren);
-        not success.has_value()) {
-        return std::unexpected(std::move(success).error());
-    }
-    if (auto success = consume_and_advance_expecting(token_type::colon);
-        not success.has_value()) {
-        return std::unexpected(std::move(success).error());
-    }
-    
-    auto return_type = parse_type(ctx)
-        .transform_error(LIFT_MEMBER(push_error))
-        .transform(construct<ast::handle<ast::type>>)
-        .value_or(poison_pill);
-
-    return ast::function_type{
-        .return_type = std::move(return_type),
-        .arguments = std::move(argument_list),
+    auto action = [this](
+        ast::group<ast::handle<ast::argument>> arguments,
+        parse_result<ast::type> return_type
+    ) {
+        return ast::function_type{
+            .return_type = contaminate(*this, std::move(return_type)),
+            .arguments = std::move(arguments),
+        };
     };
+    using enum token_type;
+    auto argument_list_parse = [](auto&& parser, semantic_context const& ctx) {
+        return parser.many_parse(ctx, &parser::parse_argument, comma, r_paren);
+    };
+    return chain_parse(
+        ctx, action,
+        keyword_function, l_paren, argument_list_parse, r_paren,
+        colon, &parser::parse_type
+    );
 }
 
 auto parser::parse_fixed_part(semantic_context const& ctx)
@@ -652,18 +430,22 @@ auto parser::parse_record_type(semantic_context const& ctx)
 
 auto parser::parse_set_type(semantic_context const& ctx)
     -> parse_result<ast::set_type> {
-    return consume_and_advance_expecting(token_type::keyword_set)
-        .and_then([this]() { return consume_and_advance_expecting(token_type::keyword_of); })
-        .and_then([&]() { return parse_type(ctx); })
-        .transform([](auto&& type) { return ast::set_type{ .base = std::move(type) }; });
+    using enum token_type;
+    return chain_parse(
+        ctx,
+        default_action<ast::set_type>(*this), 
+        keyword_set, keyword_of, &parser::parse_type
+    );
 }
 
 auto parser::parse_file_type(semantic_context const& ctx)
     -> parse_result<ast::file_type> {
-    return consume_and_advance_expecting(token_type::keyword_file)
-        .and_then([this]() { return consume_and_advance_expecting(token_type::keyword_of); })
-        .and_then([&]() { return parse_type(ctx); })
-        .transform([](auto&& type) { return ast::file_type{ .component_type = std::move(type) }; });
+    using enum token_type;
+    return chain_parse(
+        ctx,
+        default_action<ast::file_type>(*this), 
+        keyword_file, keyword_of, &parser::parse_type
+    );
 }
 //
 //

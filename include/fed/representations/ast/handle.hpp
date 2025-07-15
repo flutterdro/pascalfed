@@ -117,7 +117,7 @@ template<typename T>
 class observer_handle {
     friend handle<T>;
 public:
-    observer_handle() = delete;
+    observer_handle() = default;
     constexpr observer_handle(poison_t) noexcept 
         : m_handle(nullptr) {}
     

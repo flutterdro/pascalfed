@@ -41,6 +41,17 @@ private:
 };
 
 namespace fed {
+template<auto...> struct any { constexpr explicit(false) any(auto&&...) noexcept {} };
+template<std::size_t Index>
+constexpr auto nth_in_pack(auto&&... args) noexcept
+    -> decltype(auto) {
+    return [&]<std::size_t... Is>(std::index_sequence<Is...>) 
+        -> decltype(auto) {
+        return [](any<Is>&&..., auto&& nth, auto&&...) -> decltype(auto) {
+            return FWD(nth);
+        }(FWD(args)...);
+    }(std::make_index_sequence<Index>());
+}
 
 template<typename F>
 struct chainable {

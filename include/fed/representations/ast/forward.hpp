@@ -24,6 +24,11 @@ using group = std::vector<T>;
 template<typename T>
 using maybe = std::optional<T>;
 
+struct program;
+struct block;
+struct function;
+struct procedure;
+
 enum class type_id;
 enum class variable_id;
 enum class constant_id;

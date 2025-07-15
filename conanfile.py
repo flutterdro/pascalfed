@@ -9,7 +9,7 @@ class Recipe(ConanFile):
         self.folders.generators = "conan"
 
     def requirements(self):
-        self.requires("fmt/[~11]")
+        self.requires("fmt/11.2.0")
         self.requires("cpptrace/0.8.2")
         self.requires("boost/1.86.0")
 

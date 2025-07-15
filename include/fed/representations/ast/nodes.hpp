@@ -2,6 +2,7 @@
 #define FED_PARSE_TREE_HPP_
 
 #include "fed/diagnostics/internal-error.hpp"
+#include "fed/parser/context.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/representations/ast/handle.hpp"
 #include "fed/representations/ast/forward.hpp"
@@ -25,6 +26,21 @@
 namespace fed {
 }
 namespace fed::ast {
+
+struct block {
+    semantic_context context;
+    group<function>  functions;
+    group<procedure> procedures;
+};
+
+struct function {
+    function_id   id;
+    handle<block> block;
+};
+struct procedure {
+    procedure_id  id;
+    handle<block> block;
+};
 
 enum class type_id      { poison = 0, };
 enum class variable_id  { poison = 0, };
@@ -185,14 +201,7 @@ struct string_literal {
 };
 
 
-struct block {
-    source::view region;
-    std::optional<label_declaration> label_declaration_part;
-    std::optional<group<constant_declaration>> constant_deginitions;
-    std::optional<group<type_declaration>> type_definitions;
-    std::optional<group<variable_declaration>> variable_declarations;
 
-};
 
 
 struct function_heading;

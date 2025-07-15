@@ -155,6 +155,8 @@ auto semantic_context::add_type(ast::type_declaration type_decl)
     if (is_success) {
         auto const id = table().add(std::move(type_decl));
         it->second.id = std::to_underlying(id);
+    } else {
+        it->second.id = 0;
     }
     return {};
 }

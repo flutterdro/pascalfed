@@ -40,6 +40,8 @@ public:
     compilation_error(compilation_error const&) = delete;
     compilation_error(compilation_error&) = delete;
     constexpr compilation_error(compilation_error&&) noexcept = default;
+    constexpr auto operator=(compilation_error&&) noexcept
+        -> compilation_error& = default;
     template<typename T>
     constexpr compilation_error(T&& error) 
         : m_error(std::make_unique<error_holder<std::decay_t<T>>>(FWD(error))) {}

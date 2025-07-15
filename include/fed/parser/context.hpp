@@ -3,7 +3,6 @@
 
 #include "fed/representations/ast/forward.hpp"
 #include "fed/representations/ast/handle.hpp"
-#include "fed/representations/ast.hpp"
 #include "fed/representations/ast/name-scope.hpp"
 #include "fed/representations/ast/sym-table.hpp"
 #include "fed/parser/semantic-error.hpp"

@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "fed/parser/context.hpp"
+#include "fed/representations/ast.hpp"
 
 #include "commons.hpp"
 #include "fed/utils/superutil.hpp"
