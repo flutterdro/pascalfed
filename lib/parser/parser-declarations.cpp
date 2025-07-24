@@ -1,3 +1,4 @@
+#include "fed/diagnostics/compile-error.hpp"
 #include "fed/parser/context.hpp"
 #include "fed/parser/parser.hpp"
 #include "fed/diagnostics/internal-error.hpp"
@@ -20,6 +21,7 @@
 #include <iterator>
 #include <optional>
 #include <utility>
+#include <variant>
 
 namespace fed {
 // context is created outside the block and then moved in
@@ -179,22 +181,18 @@ auto parser::parse_pointer_type(semantic_context const& ctx)
 auto parser::parse_array_type(semantic_context const& ctx) 
     -> parse_result<ast::array_type> {
     auto action = [this](
-        ast::group<ast::handle<ast::type>> indices,
-        parse_result<ast::type> component_type
+        auto indices,
+        auto component_type
     ) {
         return ast::array_type{
-            .index_types = std::move(indices),
+            .index_types = std::move(*indices),
             .component_type = std::move(component_type)
-                .transform_error(LIFT_MEMBER(push_error))
                 .transform(construct<ast::handle<ast::type>>)
                 .value_or(poison_pill)
         };
     };
     using enum token_type;
-    auto parse_type_list = [](auto&& parser, semantic_context const& ctx) {
-        return parser.some_parse(ctx, &parser::parse_type, comma);
-    };
-
+    auto parse_type_list = make_some_parse(&parser::parse_type, comma);
     return chain_parse(
         ctx, action,
         keyword_array, l_square, parse_type_list, r_square,
@@ -229,22 +227,30 @@ auto parser::parse_argument(semantic_context const& ctx)
 auto parser::parse_function_type(semantic_context const& ctx)
     -> parse_result<ast::function_type> {
     auto action = [this](
-        ast::group<ast::handle<ast::argument>> arguments,
-        parse_result<ast::type> return_type
+        auto arguments,
+        auto return_type
     ) {
         return ast::function_type{
             .return_type = contaminate(*this, std::move(return_type)),
-            .arguments = std::move(arguments),
+            .arguments = std::move(*arguments),
         };
     };
+    auto action2 = []<typename T>(std::optional<T>&& type) {
+        return FWD(type)
+            .transform(construct<
+                std::expected<T, compilation_error>
+            >)
+            .value_or(std::unexpected(dummy_error({})));
+    };
     using enum token_type;
-    auto argument_list_parse = [](auto&& parser, semantic_context const& ctx) {
-        return parser.many_parse(ctx, &parser::parse_argument, comma, r_paren);
+    auto argument_list_parse = make_many_parse(&parser::parse_argument, semicolon);
+    auto return_type_parse = [&, this](auto&& parser, auto&& ctx_) {
+        return chain_parse(ctx_, action2, colon, &parser::parse_type);
     };
     return chain_parse(
         ctx, action,
         keyword_function, l_paren, argument_list_parse, r_paren,
-        colon, &parser::parse_type
+        return_type_parse
     );
 }
 

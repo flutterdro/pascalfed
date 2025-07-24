@@ -6,9 +6,36 @@
 #include "fed/scanner/token.hpp"
 
 #include <string>
+#include <optional>
 
 namespace fed {
 
+template<typename T>
+class recovery_result : std::optional<T> {
+    using base_t = std::optional<T>;
+public:
+    using base_t::optional;
+    using base_t::operator=;
+    using base_t::value_or;
+    using base_t::transform;
+    using base_t::and_then;
+    using base_t::or_else;
+    using base_t::has_value;
+    using base_t::operator*;
+    using base_t::operator->;
+    using base_t::operator bool;
+    template<typename U, typename V>
+    using copy_cref_t = decltype(std::forward_like<U>(std::declval<V>()));
+    template<typename Self>
+    constexpr auto cast_to_base(this Self&& self) 
+        -> copy_cref_t<Self, base_t> {
+
+    }
+    template<typename Self>
+    constexpr explicit operator base_t (this Self&& self)  {
+        return std::forward_like<Self>(self);
+    }
+};
 
 class missing_token {
 public:

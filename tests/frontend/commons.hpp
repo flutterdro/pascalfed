@@ -3,7 +3,10 @@
 
 #include "fed/diagnostics/internal-error.hpp"
 #include "fed/parser/context.hpp"
+#include "fed/representations/ast.hpp"
 #include "fed/representations/ast/forward.hpp"
+#include "fed/representations/ast/handle.hpp"
+#include "fed/utils/macros.hpp"
 #include "fed/utils/superutil.hpp"
 
 using namespace std::literals;
@@ -46,5 +49,12 @@ inline auto make_alphabet_context()
 
     return context;
 }
+
+template<typename T>
+inline constexpr auto make_handle_list =[](auto&&... args) {
+    auto result = fed::ast::group<fed::ast::handle<T>>();
+    (result.push_back(FWD(args)), ...);
+    return result;
+};
 
 #endif

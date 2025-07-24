@@ -3,6 +3,7 @@
 
 #include "fed/diagnostics/buffer.hpp"
 #include "fed/diagnostics/compile-error.hpp"
+#include "fed/parser/anchor-stack.hpp"
 #include "fed/parser/context.hpp"
 #include "fed/representations/ast/nodes.hpp"
 #include "fed/representations/raw-source.hpp"
@@ -16,6 +17,7 @@
 #include <expected>
 #include <fmt/base.h>
 #include <initializer_list>
+#include <optional>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -37,18 +39,42 @@ public:
             highest = multiplying,
         };
     };
+    // parsing mode in regrads to error recovery
+    enum class mode {
+        // it means default. but I used unchained because it sounds
+        // more badass
+        unchained,
+        probing,
+        contamination,
+        // Oh Shit Oh God Oh Fuck mode. 
+        // academics call it "panic".
+        osogof,
+    };
+    enum class transit {
+        
+    };
 public: 
     explicit parser(source::full_view, diagnostics_buffer&);
 
     auto remount(source::full_view)
+        -> void;
+    
+    struct backup {
+        lexer::backup bu;
+    };
+    auto preserve()
+        -> backup;
+    auto restore(backup)
         -> void;
 
     auto consume_and_advance()
         -> token_view;
     auto consume_and_advance_expecting(token_type token)
         -> parse_result<void>;
-    auto advance_until(std::predicate<token_type> auto&& func)
+    auto breach_token_monitor(token_type token)
         -> void;
+    auto advance_until(std::predicate<token_type> auto&& func)
+        -> bool;
     auto consume_and_advance_expecting(std::predicate<token_type> auto&& func)
         -> void;
     auto maybe_consume_and_advance_expecting(token_type token)
@@ -61,6 +87,11 @@ public:
         -> source::iterator;
     auto diagnostics() noexcept
         -> diagnostics_buffer&;
+    template<typename Self>
+    auto anchors(this Self&& self) noexcept
+        -> decltype(auto) { return std::forward_like<Self>(self.m_anchors); }
+    auto current_mode() const noexcept 
+        -> mode { return m_mode; }
     auto hazard_terminators() const noexcept
         -> token_stack const&;
     auto push_hazard_terminator(token_type)
@@ -80,15 +111,16 @@ public:
         std::initializer_list<token_type> hazard_terminators  = {token_type::eof};
     };
     template<typename F>
-    using get_parse_invoke_t = std::invoke_result_t<F, parser, semantic_context&>::value_type;
+    using get_parse_invoke_t = std::invoke_result_t<F, parser&, semantic_context&>::value_type;
     template<typename F, typename CtxT>
     auto parse_many(F&&, CtxT&&, parse_parameters const&)
         -> ast::group<ast::handle<get_parse_invoke_t<F>>> 
         requires std::same_as<std::remove_cvref_t<CtxT>, semantic_context>;
     template<typename... Ts>
     auto chain_parse(auto&& ctx, auto&& action, Ts&&... args);
-    auto many_parse(auto&& ctx, auto&& parse_func, token_type separator, token_type end);
+    auto many_parse(auto&& ctx, auto&& parse_func, token_type separator);
     auto some_parse(auto&& ctx, auto&& parse_func, token_type separator);
+    auto breach_monitor_parse(auto&& ctx, auto&& parse_func);
 
     auto parse_program() 
         -> parse_result<ast::program>; 
@@ -181,18 +213,37 @@ private:
         -> parse_result<ast::expression>;
 private:
     lexer m_lexer;
+    anchor_stack m_anchors;
     token_stack m_hazard_terminators;
+    mode m_mode;
     diagnostics_buffer& m_diagnostics;
 };
-
+inline constexpr auto suck_error_in = [](parser& parser) {
+    return [&](compilation_error err) { 
+        return parser.push_error(std::move(err)); 
+    };
+};
+inline constexpr auto contaminate = 
+    []<typename T>(parser& parser, std::optional<T> patient0) 
+        -> ast::handle<T> {
+        return std::move(patient0)
+            .transform(construct<ast::handle<T>>)
+            .value_or(poison_pill);
+    };
 constexpr auto up(parser::precedence::level lvl) noexcept
     -> parser::precedence::level {
     return static_cast<parser::precedence::level>(lvl+1);
 }
 
 inline auto parser::advance_until(std::predicate<token_type> auto&& predicate)
-    -> void {
-    while (not (predicate and equal_to(token_type::eof))(current_token().type())) {
+    -> bool {
+    while (true) {
+        if (current_token_is(predicate)) {
+            return true;
+        } 
+        if (current_token_is(any_of(anchors()))) {
+            return false;
+        }
         consume_and_advance();
     }
 }
@@ -221,16 +272,6 @@ auto parser::parse_many(F&& parse_func, CtxT&& ctx, parse_parameters const& toke
                 .transform(construct<ast::handle<get_parse_invoke_t<F>>>)
                 .value_or(poison_pill)
         );
-        // auto in_need_of_recovery = not (
-        //     equal_to(tokens.separator) or
-        //     any_of(tokens.success_terminators) or 
-        //     any_of(tokens.hazard_terminators) 
-        // );
-        // if (current_token_is(in_need_of_recovery)) {
-        //     // unexpected tokens
-        //     push_error(parse_error());
-        //     advance_until(not in_need_of_recovery);
-        // }
         
         if (current_token_is(any_of(tokens.hazard_terminators))) {
             // missin terminator 
@@ -304,7 +345,7 @@ consteval auto remap() {
 }
 
 template<typename T>
-using unwrap = std::invoke_result_t<T, parser, semantic_context&>;
+using unwrap = std::optional<typename std::invoke_result_t<T, parser&, semantic_context&>::value_type>;
 }
 template<typename... Ts>
 auto parser::chain_parse(auto&& ctx, auto&& action, Ts&&... args) {
@@ -312,14 +353,21 @@ auto parser::chain_parse(auto&& ctx, auto&& action, Ts&&... args) {
     auto results = []<std::size_t... Is>(std::index_sequence<Is...>) {
         return std::tuple<detail::unwrap<
             detail::index_pack_t<map.producers[Is], Ts...>
-        >...>();
+        >...>((Is, std::nullopt)...);
     }(std::make_index_sequence<map.producers.size()>());
+    [&]<std::size_t... Is>(std::index_sequence<Is...>){
+        anchors().push(std::array{
+            detail::index_pack<map.anchors[map.anchors.size() - 1 - Is]>(args...)...
+        });
+    }(std::make_index_sequence<map.anchors.size()>());
     [&]<std::size_t... Is>(std::index_sequence<Is...>){([&]{
         if constexpr (std::same_as<token_type, Ts>) {
-            consume_and_advance_expecting(detail::index_pack<Is>(args...));
+            auto const& anchor = detail::index_pack<Is>(args...);
+            breach_token_monitor(anchor);
+            anchors().pop(anchor);
         } else {
-            std::get<map.map_back[Is]>(results) = 
-                std::invoke(detail::index_pack<Is>(args...), *this, ctx);
+            auto&& parse_func = detail::index_pack<Is>(FWD(args)...);
+            std::get<map.map_back[Is]>(results) = breach_monitor_parse(ctx, parse_func);
         }
     }(), ...);}(std::index_sequence_for<Ts...>());
 
@@ -335,18 +383,20 @@ auto parser::some_parse(
     using parse_res_t = get_parse_invoke_t<decltype(parse_func)>;
     auto result = ast::group<ast::handle<parse_res_t>>();
     while (true) {
+        if (current_mode() == mode::osogof) {
+            break;
+        }
+        anchors().push(separator);
         result.push_back(
-            std::invoke(FWD(parse_func), *this, ctx)
-                .transform_error(LIFT_MEMBER(push_error))
+            breach_monitor_parse(ctx, parse_func)
                 .transform(construct<ast::handle<parse_res_t>>)
                 .value_or(poison_pill)
         );
-        if (current_token_is(equal_to(separator))) {
-            consume_and_advance();
-            continue;
-        } else { 
+        anchors().pop(separator);
+        if (current_token_is(equal_to(anchors().top()))) { 
             break;
         }
+        breach_token_monitor(separator);
     }
 
     return result;
@@ -354,16 +404,55 @@ auto parser::some_parse(
 auto parser::many_parse(
     auto&& ctx, 
     auto&& parse_func,
-    token_type separator,
-    token_type end
+    token_type separator
 ) {
-    if (current_token_is(equal_to(end))) {
+    if (current_token_is(equal_to(anchors().top()))) {
         using parse_res_t = get_parse_invoke_t<decltype(parse_func)>;
         return ast::group<ast::handle<parse_res_t>>();
     }
     return some_parse(ctx, FWD(parse_func), separator);
 }
 
+auto parser::breach_monitor_parse(auto&& ctx, auto&& parse_func) {
+    using recovery_res_t = std::optional<get_parse_invoke_t<decltype(parse_func)>>;
+    switch (current_mode()) {
+        case mode::unchained: {
+            auto parse_res = std::invoke(parse_func, *this, ctx);
+            if (parse_res.has_value()) {
+                return recovery_res_t(std::move(*parse_res));
+            } else {
+                push_error(std::move(parse_res.error()));
+                m_mode = mode::contamination;
+                return recovery_res_t(std::nullopt);
+            }
+        }
+        case mode::probing: {
+            static constexpr auto max_probe_count = 2uz;
+            auto backup = preserve();
+            for (auto probe_attempt = 0uz; probe_attempt < max_probe_count; ++probe_attempt) {
+                for (auto i = 0uz; i < probe_attempt; ++i) {
+                    consume_and_advance();
+                }
+                if (current_token_is(any_of(anchors()))) {
+                    m_mode = mode::osogof;
+                    return recovery_res_t(std::nullopt);
+                }
+                auto probe_res = std::invoke(parse_func, *this, ctx);
+                if (probe_res.has_value()) {
+                    m_mode = mode::unchained;
+                    return recovery_res_t(std::move(*probe_res));
+                }
+                restore(backup);
+            }
+            m_mode = mode::contamination;
+            return recovery_res_t(std::nullopt);
+        }
+        case mode::contamination: 
+        case mode::osogof: {
+            return recovery_res_t(std::nullopt);
+        }
+    }
+}
 } // namespace fed
 
 

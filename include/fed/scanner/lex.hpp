@@ -19,6 +19,16 @@ struct lexer {
     auto remount(source::full_view)
         -> void;
 
+    struct backup {
+        bool is_relexing;
+        source::iterator cursor;
+        token_view cached_token;
+    };
+    auto preserve()
+        -> backup;
+    auto restore(backup)
+        -> void;
+
     auto cursor() const noexcept
         -> source::iterator;
 

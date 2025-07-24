@@ -29,6 +29,7 @@ target_sources(fed_frontend
         parser/parser-expressions.cpp
         parser/parser.cpp
         parser/context.cpp
+        parser/anchor-stack.cpp
         diagnostics/buffer.cpp
         representations/raw-source.cpp
 )

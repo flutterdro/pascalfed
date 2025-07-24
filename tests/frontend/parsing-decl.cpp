@@ -60,6 +60,7 @@ TEST_CASE("Parsing type declarations", "[frontend][parsing]") {
         if (not parse_res.has_value()) {\
             FAIL(parse_res.error().message());\
         }\
+            diagnostics.flush();\
         REQUIRE(*parse_res == parse_case.expected_result);\
     } while (false)
 
@@ -165,7 +166,7 @@ TEST_CASE("Parsing type declarations", "[frontend][parsing]") {
             }
         }));
         ADD_TEST(({
-            .source = "function (:Integer, :Char) : Integer"_fv, 
+            .source = "function (:Integer; :Char) : Integer"_fv, 
             .expected_result = ast::function_type{
                 .return_type = int_type(),
                 .arguments   = make_group_of_handles(

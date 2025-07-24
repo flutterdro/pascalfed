@@ -37,6 +37,15 @@ auto lexer::remount(source::full_view view)
 auto lexer::cursor() const noexcept
     -> source::iterator { return m_cursor; }
 
+auto lexer::preserve() 
+    -> backup { return {m_is_relexing, m_cursor, m_cached_token}; }
+auto lexer::restore(backup bu) 
+    -> void {
+    m_is_relexing = bu.is_relexing;
+    m_cursor = bu.cursor;
+    m_cached_token = bu.cached_token;
+}
+
 auto lexer::advance_lexer()
     -> void {
     // TODO: add error handling

@@ -41,6 +41,7 @@ private:
 };
 
 namespace fed {
+inline constexpr auto id = [](auto&& val) -> decltype(auto) { return FWD(val); };
 template<auto...> struct any { constexpr explicit(false) any(auto&&...) noexcept {} };
 template<std::size_t Index>
 constexpr auto nth_in_pack(auto&&... args) noexcept

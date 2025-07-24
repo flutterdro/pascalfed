@@ -11,23 +11,28 @@ if (not is_succ) {\
 } while(false)
 
 namespace fed {
-inline constexpr auto suck_error_in = [](parser& parser) {
-    return [&](compilation_error err) { 
-        return parser.push_error(std::move(err)); 
-    };
-};
-inline constexpr auto contaminate = 
-    []<typename T>(parser& parser, parse_result<T> patient0) 
-        -> ast::handle<T> {
-        return std::move(patient0)
-            .transform_error(suck_error_in(parser))
-            .transform(construct<ast::handle<T>>)
-            .value_or(poison_pill);
-    };
+
 template<typename T> 
-inline constexpr auto default_action = [](auto& parser) {
+inline constexpr auto default_action = [](auto&& parser) {
     return [&](auto&&... args) {
         return T(contaminate(parser, FWD(args))...);
+    };
+};
+
+inline constexpr auto make_some_parse = [](auto&& parse_func, token_type separator) {
+    using parse_res_t = ast::group<ast::handle<
+        typename std::invoke_result_t<decltype(parse_func), parser&, semantic_context&>::value_type
+    >>;
+    return [parse_func_ = FWD(parse_func), separator](auto&& parser, auto&& ctx) {
+        return parse_result<parse_res_t>(parser.some_parse(FWD(ctx), std::move(parse_func_), separator));
+    };
+};
+inline constexpr auto make_many_parse = [](auto&& parse_func, token_type separator) {
+    using parse_res_t = ast::group<ast::handle<
+        typename std::invoke_result_t<decltype(parse_func), parser&, semantic_context&>::value_type
+    >>;
+    return [parse_func_ = FWD(parse_func), separator](auto&& parser, auto&& ctx) {
+        return parse_result<parse_res_t>(parser.many_parse(FWD(ctx), std::move(parse_func_), separator));
     };
 };
 }

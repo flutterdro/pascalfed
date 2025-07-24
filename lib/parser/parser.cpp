@@ -14,15 +14,58 @@ parser::parser(
     diagnostics_buffer& buffer
 )
     : m_lexer(buffer, source)
-    , m_diagnostics(buffer) 
+    , m_diagnostics(buffer)
+    , m_anchors()
+    , m_mode(mode::unchained)
     , m_hazard_terminators() {
     m_hazard_terminators.reserve(10);
     m_hazard_terminators.push_back(token_type::eof);
 }
 
+auto parser::breach_token_monitor(token_type token) 
+    -> void {
+    switch (current_mode()) {
+        case mode::unchained: {
+            if (current_token_is(equal_to(token))) {
+                consume_and_advance();
+            } else {
+                push_error(missing_token(cursor().where(), token));
+                m_mode = mode::probing;
+            }
+            break;
+        }
+        case mode::probing: 
+        case mode::contamination: {
+            if (advance_until(equal_to(token))) {
+                consume_and_advance();
+                m_mode = mode::unchained;
+            } else {
+                m_mode = mode::osogof;
+            }
+            break;
+        }
+        case mode::osogof: {
+            if (current_token_is(equal_to(token))) {
+                m_mode = mode::unchained;
+                consume_and_advance();
+            }
+            break;
+        }
+    }
+}
+
 auto parser::remount(source::full_view view)
     -> void {
     m_lexer.remount(view);
+}
+
+auto parser::preserve()
+    -> backup {
+    return {m_lexer.preserve()};
+}
+auto parser::restore(backup bu)
+    -> void {
+    m_lexer.restore(bu.bu);
 }
 
 auto parser::cursor() const noexcept

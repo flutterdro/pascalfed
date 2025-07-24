@@ -15,6 +15,7 @@ target_sources(frontend_tests
         frontend/lexing.cpp 
         frontend/parsing-expressions.cpp
         frontend/parsing-decl.cpp
+        frontend/parsing-recovery.cpp
         frontend/ctx-symtable.cpp
 )
 
