@@ -143,6 +143,32 @@ auto semantic_context::get_bool_id() const
     -> ast::type_id { return ast::type_id{4}; }
 auto semantic_context::get_char_id() const
     -> ast::type_id { return ast::type_id{3}; }
+auto semantic_context::maybe_sploink_enum(type_observer type)
+    -> semantic_result<void> {
+    auto maybe_sploinker = [&](ast::type const& type_)
+        -> type_observer {
+        // TODO: find a way to handle errors
+        visit(overloaded{
+            [](auto const&) {},
+            [&](ast::enumerated_type const& e) {
+                for (int i = 0; i < e.enum_members.size(); ++i) {
+                    auto _ = add_constant(ast::constant_declaration{
+                        .name = e.enum_members[i].value_or("##poisoned enum value"),
+                        .constant = ast::enum_constant{
+                            .type = type,
+                            .ord_value = i
+                        }
+                    });
+                }
+            }
+        }, type_);
+        return poison_pill;
+    };
+
+    type.and_then(maybe_sploinker);
+
+    return {};
+}
 auto semantic_context::add_type(ast::type_declaration type_decl) 
     -> semantic_result<void> {
     auto const [is_success, it] = names().insert(
@@ -152,6 +178,7 @@ auto semantic_context::add_type(ast::type_declaration type_decl)
             .kind = ast::symbol_kind::type, 
         }
     );
+    auto _ = maybe_sploink_enum(type_decl.type);
     if (is_success) {
         auto const id = table().add(std::move(type_decl));
         it->second.id = std::to_underlying(id);

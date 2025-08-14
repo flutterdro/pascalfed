@@ -2,6 +2,7 @@
 
 #include "commons.hpp"
 #include "fed/diagnostics/buffer.hpp"
+#include "fed/parser/parse_error.hpp"
 #include "fed/parser/parser.hpp"
 #include "fed/parser/parser-helpers.hpp"
 #include "fed/representations/ast/forward.hpp"
@@ -10,7 +11,7 @@
 inline constexpr auto simple_list_parse = 
     [](auto&& parser, auto&& context) {
         using t = fed::ast::group<fed::ast::handle<fed::ast::identifier>>;
-        auto action = [](std::optional<t> res) { return std::move(*res); };
+        auto action = [](auto res) { return std::move(*res); };
         auto id_list_parse = fed::make_some_parse(
             &fed::parser::parse_identifier, 
             fed::token_type::comma

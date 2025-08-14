@@ -24,8 +24,8 @@
 
 namespace fed {
 
-template<typename T>
-using parse_result = std::expected<T, compilation_error>;
+// template<typename T>
+// using parse_result = std::expected<T, compilation_error>;
 
 class parser {
     using token_stack = std::vector<token_type>;
@@ -100,6 +100,8 @@ public:
         -> void;
     auto push_error(compilation_error err) 
         -> std::monostate;
+    auto push_error(std::monostate)
+        -> std::monostate { return {}; }
 
     // every parse function has a contract
     // they must advance lexer to the next token 
@@ -121,6 +123,7 @@ public:
     auto many_parse(auto&& ctx, auto&& parse_func, token_type separator);
     auto some_parse(auto&& ctx, auto&& parse_func, token_type separator);
     auto breach_monitor_parse(auto&& ctx, auto&& parse_func);
+    auto breach_monitor_parse(auto&& ctx, monitored auto&& parse_func);
 
     auto parse_program() 
         -> parse_result<ast::program>; 
@@ -224,7 +227,7 @@ inline constexpr auto suck_error_in = [](parser& parser) {
     };
 };
 inline constexpr auto contaminate = 
-    []<typename T>(parser& parser, std::optional<T> patient0) 
+    []<typename T>(parser& parser, recovery_result<T> patient0) 
         -> ast::handle<T> {
         return std::move(patient0)
             .transform(construct<ast::handle<T>>)
@@ -304,9 +307,12 @@ using index_pack_t = std::remove_cvref_t<decltype(
     index_pack<I>(std::declval<Ts>()...)
 )>;
 
+template<typename T>
+inline constexpr bool is_anchor = 
+    std::is_same_v<std::remove_cvref_t<T>, token_type>;
 template<typename... Ts>
 consteval auto count_anchors() -> std::size_t {
-    return (std::same_as<Ts, token_type> + ...);
+    return (is_anchor<Ts> + ...);
 }
 template<typename T1, typename T2, typename T3>
 struct mapping {
@@ -329,7 +335,7 @@ consteval auto remap() {
     auto map_back_index = std::size_t(0);
 
     ([&]() {
-        if (std::same_as<Ts, token_type>) {
+        if (is_anchor<Ts>) {
             maps.anchors[anchor_index] = map_back_index;
             maps.map_back[map_back_index] = anchor_index;
             ++anchor_index;           
@@ -343,9 +349,18 @@ consteval auto remap() {
 
     return maps;
 }
-
 template<typename T>
-using unwrap = std::optional<typename std::invoke_result_t<T, parser&, semantic_context&>::value_type>;
+struct monitor_wrap;
+template<typename T>
+struct monitor_wrap<identity_monad<T>> { using type = identity_monad<T>; };
+template<typename T>
+struct monitor_wrap<recovery_result<T>> { using type = recovery_result<T>; };
+template<typename T>
+struct monitor_wrap<parse_result<T>> { using type = recovery_result<T>; };
+template<typename T>
+using monitor_wrap_t = typename monitor_wrap<T>::type;
+template<typename T>
+using unwrap = std::optional<monitor_wrap_t<get_parse_result<T>>>;
 }
 template<typename... Ts>
 auto parser::chain_parse(auto&& ctx, auto&& action, Ts&&... args) {
@@ -353,7 +368,7 @@ auto parser::chain_parse(auto&& ctx, auto&& action, Ts&&... args) {
     auto results = []<std::size_t... Is>(std::index_sequence<Is...>) {
         return std::tuple<detail::unwrap<
             detail::index_pack_t<map.producers[Is], Ts...>
-        >...>((Is, std::nullopt)...);
+        >...>((static_cast<void>(Is), std::nullopt)...);
     }(std::make_index_sequence<map.producers.size()>());
     [&]<std::size_t... Is>(std::index_sequence<Is...>){
         anchors().push(std::array{
@@ -361,7 +376,7 @@ auto parser::chain_parse(auto&& ctx, auto&& action, Ts&&... args) {
         });
     }(std::make_index_sequence<map.anchors.size()>());
     [&]<std::size_t... Is>(std::index_sequence<Is...>){([&]{
-        if constexpr (std::same_as<token_type, Ts>) {
+        if constexpr (detail::is_anchor<Ts>) {
             auto const& anchor = detail::index_pack<Is>(args...);
             breach_token_monitor(anchor);
             anchors().pop(anchor);
@@ -372,7 +387,7 @@ auto parser::chain_parse(auto&& ctx, auto&& action, Ts&&... args) {
     }(), ...);}(std::index_sequence_for<Ts...>());
 
     return std::apply([&](auto&&... args_) {
-        return action(std::move(args_)...);
+        return action(*std::move(args_)...);
     }, std::move(results));
 }
 
@@ -381,11 +396,15 @@ auto parser::some_parse(
     auto&& parse_func, 
     token_type separator) {
     using parse_res_t = get_parse_invoke_t<decltype(parse_func)>;
-    auto result = ast::group<ast::handle<parse_res_t>>();
+    auto result = ast::handle_group<parse_res_t>();
+    auto should_terminate =
+        not equal_to(separator) and
+        any_of(anchors());
     while (true) {
         if (current_mode() == mode::osogof) {
             break;
         }
+        if (current_token_is(should_terminate)) break; 
         anchors().push(separator);
         result.push_back(
             breach_monitor_parse(ctx, parse_func)
@@ -393,28 +412,29 @@ auto parser::some_parse(
                 .value_or(poison_pill)
         );
         anchors().pop(separator);
-        if (current_token_is(equal_to(anchors().top()))) { 
+        if (current_token_is(should_terminate)) { 
             break;
         }
         breach_token_monitor(separator);
     }
 
-    return result;
+    return many_parse_result(std::move(result));
 } 
 auto parser::many_parse(
     auto&& ctx, 
     auto&& parse_func,
     token_type separator
 ) {
-    if (current_token_is(equal_to(anchors().top()))) {
-        using parse_res_t = get_parse_invoke_t<decltype(parse_func)>;
-        return ast::group<ast::handle<parse_res_t>>();
-    }
+    // if (current_token_is(equal_to(anchors().top()))) {
+    //     using parse_res_t = many_parse_result<
+    //         ast::group<ast::handle<get_parse_invoke_t<decltype(parse_func)>>>>;
+    //     return parse_res_t();
+    // }
     return some_parse(ctx, FWD(parse_func), separator);
 }
 
 auto parser::breach_monitor_parse(auto&& ctx, auto&& parse_func) {
-    using recovery_res_t = std::optional<get_parse_invoke_t<decltype(parse_func)>>;
+    using recovery_res_t = recovery_result<get_parse_invoke_t<decltype(parse_func)>>;
     switch (current_mode()) {
         case mode::unchained: {
             auto parse_res = std::invoke(parse_func, *this, ctx);
@@ -423,7 +443,7 @@ auto parser::breach_monitor_parse(auto&& ctx, auto&& parse_func) {
             } else {
                 push_error(std::move(parse_res.error()));
                 m_mode = mode::contamination;
-                return recovery_res_t(std::nullopt);
+                return recovery_res_t(recovery_fail);
             }
         }
         case mode::probing: {
@@ -435,7 +455,7 @@ auto parser::breach_monitor_parse(auto&& ctx, auto&& parse_func) {
                 }
                 if (current_token_is(any_of(anchors()))) {
                     m_mode = mode::osogof;
-                    return recovery_res_t(std::nullopt);
+                    return recovery_res_t(recovery_fail);
                 }
                 auto probe_res = std::invoke(parse_func, *this, ctx);
                 if (probe_res.has_value()) {
@@ -445,14 +465,21 @@ auto parser::breach_monitor_parse(auto&& ctx, auto&& parse_func) {
                 restore(backup);
             }
             m_mode = mode::contamination;
-            return recovery_res_t(std::nullopt);
+            return recovery_res_t(recovery_fail);
         }
         case mode::contamination: 
         case mode::osogof: {
-            return recovery_res_t(std::nullopt);
+            return recovery_res_t(recovery_fail);
         }
     }
 }
+auto parser::breach_monitor_parse(
+    auto&& ctx, 
+    monitored auto&& parse_func
+) {
+    return std::invoke(FWD(parse_func), *this, ctx);
+}
+
 } // namespace fed
 
 

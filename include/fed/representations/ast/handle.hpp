@@ -1,6 +1,7 @@
 #ifndef FED_AST_HANDLE_HPP_ABSXIUH
 #define FED_AST_HANDLE_HPP_ABSXIUH
 
+#include <concepts>
 #include <memory>
 
 #include <fmt/core.h>
@@ -101,6 +102,11 @@ public:
         -> void { m_handle = nullptr; }
     auto is_poisoned() const
         -> bool { return m_handle == nullptr; }
+    auto value_or(T val) const
+        -> T 
+        requires std::copyable<T> {
+        return is_poisoned() ? std::move(val) : *m_handle;
+    }
 
     constexpr auto operator==(handle const& other) const noexcept
         -> bool {
@@ -148,6 +154,11 @@ public:
     friend auto then_all(F&& func, observer_handle<Ts>... handles)
         -> std::invoke_result_t<F, Ts const&...>;
 
+    auto value_or(T val) const
+        -> T
+        requires std::movable<T> {
+        return is_poisoned() ? std::move(val) : *m_handle;
+    }
     auto unsafe_value() const noexcept 
         -> T const& { return *m_handle; }
 

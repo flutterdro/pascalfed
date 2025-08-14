@@ -87,6 +87,9 @@ public:
     auto add_constant(ast::constant_declaration)
         -> semantic_result<void>;
 
+    auto maybe_sploink_enum(type_observer)
+        -> semantic_result<void>;
+
     auto get_poison_type() const 
         -> ast::type_identifier;
     

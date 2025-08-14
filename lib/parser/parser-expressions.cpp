@@ -494,10 +494,10 @@ auto parser::parse_constant(semantic_context const& ctx)
                     .id   = *id,
                 };
             } else {
-                return std::unexpected(parse_error());
+                return std::unexpected(dummy_error(cursor().where(), "not a constant name"));
             }
         }
-        default: return std::unexpected(parse_error());
+        default: return std::unexpected(dummy_error(cursor().where(), "not a valid constant"));
     }
 }
 

@@ -13,6 +13,7 @@
 #include "fed/utils/superutil.hpp"
 #include "fed/diagnostics/buffer.hpp"
 
+#include <__algorithm/ranges_fold.h>
 #include <boost/charconv/chars_format.hpp>
 #include <boost/charconv/from_chars.hpp>
 
@@ -27,12 +28,25 @@ namespace fed {
 // context is created outside the block and then moved in
 auto parser::parse_block(semantic_context ctx)
     -> parse_result<ast::block> {
+    anchors().push(std::array{
+        token_type::keyword_var,
+        token_type::keyword_type,
+        token_type::keyword_const
+    });
     if (current_token_is(equal_to(token_type::keyword_const))) {
+        consume_and_advance();
 
     }
+    anchors().pop(token_type::keyword_const);
     if (current_token_is(equal_to(token_type::keyword_type))) {
-        // parse_type_definitions(ctx);
+        auto _ = parse_type_definitions(ctx);
     }
+    anchors().pop(token_type::keyword_type);
+    if (current_token_is(equal_to(token_type::keyword_var))) {
+        consume_and_advance();
+
+    }
+    anchors().pop(token_type::keyword_var);
     
     
 }
@@ -41,44 +55,33 @@ auto parser::parse_block(semantic_context ctx)
 
 auto parser::parse_type_definitions(semantic_context& ctx)
     -> parse_result<void> {
-    while (true) {
-        using enum token_type;
-        auto termination_tokens = std::array{
-            keyword_var, keyword_begin,
-            keyword_function, keyword_procedure
-        };
-        if (current_token_is(any_of(termination_tokens))) {
-            break;
+    auto definition_action = [&](auto name, auto type) {
+        if (not name.has_value()) 
+            return identity_monad<std::monostate>();
+        auto succ = ctx.add_type(ast::type_declaration{
+            .name = std::move(*name),
+            .type = monad_to_handle(std::move(type)),
+        });
+        if (not succ.has_value()) {
+            push_error(succ.error());
         }
-        auto is_succ = parse_type_definition(ctx);
-        if (is_succ) {
-            auto _ = ctx.add_type(std::move(*is_succ))
-                .transform_error(LIFT_MEMBER(push_error));
-        } else {
-            return {};
-        }
-        TRY_PARSE_TOKEN(token_type::semicolon);
-    }
-}
-auto parser::parse_type_definition(semantic_context& ctx)
-    -> parse_result<ast::type_declaration> {
-    auto identifier_exp = parse_identifier(ctx);
-    if (not identifier_exp.has_value()) {
-        return std::unexpected(std::move(identifier_exp.error()));
-    }
-    auto err = consume_and_advance_expecting(token_type::equal);
-    if (not err.has_value()) {
-        return std::unexpected(std::move(err).error());
-    }
-    auto type_exp = parse_type(ctx);
-    if (not type_exp.has_value()) {
-        return std::unexpected(std::move(type_exp).error());
-    }
-    
-    return ast::type_declaration{
-        .name = *std::move(identifier_exp),
-        .type = *std::move(type_exp),
+        return identity_monad<std::monostate>();
     };
+    auto definition_parse = make_chain_parse(
+        definition_action,
+        &parser::parse_identifier,
+        token_type::equal,
+        &parser::parse_type,
+        token_type::semicolon
+    );
+    // many_parse(ctx, definition_parse, token_type::empty);
+    chain_parse(
+        ctx,
+        [](auto&&...) { return identity_monad<std::monostate>(); },
+        token_type::keyword_type, 
+        make_many_parse(definition_parse, token_type::empty)
+    );
+    return {};
 }
 
 auto parser::parse_type(semantic_context const& ctx)
@@ -129,30 +132,29 @@ auto parser::parse_type(semantic_context const& ctx)
             return parse_subrange_type(ctx)
                 .transform(construct<ast::type>);
         }
-        default: return std::unexpected(parse_error());
+        default: return std::unexpected(dummy_error(cursor().where(), "bad type"));
     }
 }
 
 auto parser::parse_enumerated_type(semantic_context const& ctx) 
     -> parse_result<ast::enumerated_type> {
-    if (auto succ = consume_and_advance_expecting(token_type::l_paren);
-        not succ.has_value()) {
-        return std::unexpected(std::move(succ).error());
-    }
-    auto idents = parse_many(&parser::parse_identifier, ctx, parse_parameters{
-        .separator = token_type::comma,
-        .success_terminators = {token_type::r_paren},
-        .hazard_terminators = {}
-    });
-    return ast::enumerated_type{
-        .enum_members = std::move(idents),
+    auto action = [](auto enums) {
+        return ast::enumerated_type{.enum_members = std::move(*enums)};
     };
+    
+    return chain_parse(
+        ctx,
+        action,
+        token_type::l_paren, 
+        make_many_parse(&parser::parse_identifier, token_type::comma),
+        token_type::r_paren
+    );
 }
 auto parser::parse_subrange_type(semantic_context const& ctx)
     -> parse_result<ast::subrange_type> {
     using enum token_type;
     return chain_parse(
-        ctx, default_action<ast::subrange_type>(*this),
+        ctx, default_action<ast::subrange_type>,
         &parser::parse_constant, dotdot, &parser::parse_constant
     );
 }
@@ -180,15 +182,13 @@ auto parser::parse_pointer_type(semantic_context const& ctx)
 
 auto parser::parse_array_type(semantic_context const& ctx) 
     -> parse_result<ast::array_type> {
-    auto action = [this](
+    auto action = [](
         auto indices,
         auto component_type
     ) {
         return ast::array_type{
             .index_types = std::move(*indices),
-            .component_type = std::move(component_type)
-                .transform(construct<ast::handle<ast::type>>)
-                .value_or(poison_pill)
+            .component_type = monad_to_handle(std::move(component_type))
         };
     };
     using enum token_type;
@@ -235,12 +235,8 @@ auto parser::parse_function_type(semantic_context const& ctx)
             .arguments = std::move(*arguments),
         };
     };
-    auto action2 = []<typename T>(std::optional<T>&& type) {
-        return FWD(type)
-            .transform(construct<
-                std::expected<T, compilation_error>
-            >)
-            .value_or(std::unexpected(dummy_error({})));
+    auto action2 = [](auto&& type) {
+        return FWD(type);
     };
     using enum token_type;
     auto argument_list_parse = make_many_parse(&parser::parse_argument, semicolon);
@@ -256,190 +252,50 @@ auto parser::parse_function_type(semantic_context const& ctx)
 
 auto parser::parse_fixed_part(semantic_context const& ctx)
     -> parse_result<ast::fixed_part> {
-    auto fixed_field_parse = [](
-        parser& parser, 
-        semantic_context const& ctx
-    ) -> ast::group<ast::handle<ast::fixed_field>> {
-        auto result = ast::group<ast::handle<ast::fixed_field>>();
-        auto ids = parser.parse_many(&parser::parse_identifier, ctx, {
-            .separator = token_type::comma,
-            .success_terminators = {token_type::colon},
-            .hazard_terminators  = {},
-        });
-        parser.consume_and_advance_expecting(token_type::colon);
-        auto type = parser.parse_type(ctx)
-            .transform(construct<ast::handle<ast::type>>)
-            .value_or(poison_pill);
-        auto clone_type_for_field = [&type](ast::identifier&& idnt) 
-            -> ast::fixed_field { 
-            return {
-                .name = std::move(idnt), 
-                .type = ast::clone(type),
-            };
-        };
-        auto move_type_for_field = [&type](ast::identifier&& idnt) 
-            -> ast::fixed_field { 
-            return {
-                .name = std::move(idnt), 
-                .type = std::move(type),
-            };
-        };
-        for (auto i = std::size_t(0); i < ids.size(); ++i) {
-            auto const is_last_index = i == ids.size() - 1;
-            // why did i do that?
-            // because i didn't want an extra copy
-            if (is_last_index) {
-                result.push_back(
-                    std::move(ids[i]).transform(move_type_for_field)
-                );
-            } else {
-                result.push_back(
-                    std::move(ids[i]).transform(clone_type_for_field)
-                );
-            }
-        }
-        return result;
-    }; 
-    auto result = ast::fixed_part();
-    while (true) {
-        if (current_token_is(equal_to(token_type::keyword_end))) {
-            break;
-        }
-        std::ranges::move(
-            fixed_field_parse(*this, ctx),
-            std::back_inserter(result)
+    auto fixed_field_action = [](auto idnt_m, auto type_m) {
+        return identity_monad(repopulate_identifiers<ast::fixed_field>(
+            std::move(*idnt_m), monad_to_handle(std::move(type_m))
+        ));
+    };
+    auto fixed_field_parse = 
+         make_chain_parse(
+            fixed_field_action,
+            make_some_parse(&parser::parse_identifier, token_type::comma),
+            token_type::colon,
+            &parser::parse_type,
+            token_type::semicolon
         );
-        if (current_token_is(equal_to(token_type::keyword_end))) {
-            break;
+    
+    auto fields = *many_parse(ctx, fixed_field_parse, token_type::empty);
+    auto field_fold = [](auto&& acc, auto&& val) {
+        if (val.is_poisoned()) return std::move(acc);
+        for (auto&& field : *val) {
+            acc.push_back(std::move(field));
         }
-        consume_and_advance_expecting(token_type::semicolon);
-    }
-
-    return result;
+        return std::move(acc);
+    };
+    return std::ranges::fold_left(fields, ast::fixed_part(), field_fold);
 }
 auto parser::parse_record_type(semantic_context const& ctx)
     -> parse_result<ast::record_type> {
-    if (current_token_is(not equal_to(token_type::keyword_record))) {
-        return std::unexpected(parse_error());
-    }
-    consume_and_advance();
-    auto fixed_fields = *parse_fixed_part(ctx);
-    if (auto success = consume_and_advance_expecting(token_type::keyword_end);
-        not success.has_value()) {
-        return std::unexpected(std::move(success).error());
-    }
-
-    return ast::record_type{
-        .fixed_fields = std::move(fixed_fields),
+    auto action = [](auto&& fields) {
+        return ast::record_type{.fixed_fields = std::move(*fields) };
     };
+
+    return chain_parse(
+        ctx, action,
+        token_type::keyword_record,
+        &parser::parse_fixed_part,
+        token_type::keyword_end
+    );
 }
-//
-// auto parser::parse_field_list()
-//     -> parse_result<handle<ast::record_type>> {
-//     // auto result = ast::record_type();
-//     //
-//     // TRY(result.fixed_fields, parse_group_of_symbols(
-//     //     *this, &parser::parse_fixed_field, 
-//     //     {token_type::keyword_end, token_type::keyword_case}, 
-//     //     token_type::empty)
-//     // );
-//     // TRY(result.variant_part, parse_maybe(*this, &parser::parse_variant_part, token_type::keyword_case));
-//     //
-//     // return result;
-// }
-//
-// auto parser::parse_fixed_field()
-//     -> parse_result<handle<ast::fixed_fields>> {
-//     // auto result = ast::fixed_field();
-//     //
-//     // TRY(result.names, parse_group_of_symbols(
-//     //     *this, &parser::parse_identifier, 
-//     //     {token_type::colon}, token_type::comma)
-//     // );
-//     // TRY_OPT(consume_and_advance_expecting(token_type::colon));
-//     // TRY(result.type, parse_type());
-//     // TRY_OPT(consume_and_advance_expecting(token_type::semicolon));
-//     //
-//     // return result;
-// }
-//
-// auto parser::parse_variant_part()
-//     -> parse_result<handle<ast::variant_field>> {
-//     auto result = ast::variant_field();
-//
-//     TRY_OPT(consume_and_advance_expecting(token_type::keyword_case));
-//     // TODO: make this identifier optional
-//     // btw grammar for this optional identifier sucks
-//     TRY(result.name, parse_identifier());
-//     TRY_OPT(consume_and_advance_expecting(token_type::colon));
-//     TRY(result.tag, parse_type());
-//     TRY(result.variants, parse_group_of_symbols(
-//         *this, &parser::parse_variant, 
-//         {token_type::keyword_end}, token_type::empty)
-//     );
-//     
-//     return result;
-// }
-//
-// auto parser::parse_variant()
-//     -> parse_result<handle<ast::variant_part>> {
-//     // auto result = ast::variant();
-//     // auto result_fields = ast::record_type();
-//     // 
-//     // TRY(result.matches, parse_group_of_symbols(
-//     //     *this, &parser::parse_constant, 
-//     //     {token_type::colon}, token_type::comma)
-//     // );
-//     // TRY_OPT(consume_and_advance_expecting(token_type::colon));
-//     // TRY_OPT(consume_and_advance_expecting(token_type::l_paren));
-//
-//     // TRY(result_fields.fixed_fields, parse_group_of_symbols(
-//     //     *this, &parser::parse_fixed_field, 
-//     //     {token_type::r_paren, token_type::keyword_case}, 
-//     //     token_type::empty)
-//     // );
-//     // if (current_token().type() == token_type::keyword_case) {
-//     //     TRY_OPT(consume_and_advance_expecting(token_type::keyword_case));
-//     //     // TODO: make this identifier optional
-//     //     auto variant_part_res = ast::variant_field();
-//     //     TRY(variant_part_res.name, parse_identifier());
-//     //     TRY_OPT(consume_and_advance_expecting(token_type::colon));
-//     //     TRY(variant_part_res.tag, parse_type());
-//     //     TRY(variant_part_res.variants, parse_group_of_symbols(
-//     //         *this, &parser::parse_variant, 
-//     //         {token_type::r_paren}, token_type::empty)
-//     //     );
-//     //
-//     //     result_fields.variant_part = std::move(variant_part_res);
-//     //
-//     // } else {
-//     //     result_fields.variant_part = std::nullopt;
-//     // }
-//     // TRY_OPT(consume_and_advance_expecting(token_type::r_paren));
-//     // result.fields = std::move(result_fields);
-//     // return result;
-// }
-//
-// auto parser::parse_enumerated_type()
-//     -> parse_result<handle<ast::enumerated_type>> {
-//     auto result = ast::enumerated_type();
-//     //
-//     // TRY_OPT(consume_and_advance_expecting(token_type::l_paren));
-//     // TRY(result.identifiers, parse_group_of_symbols(
-//     //     *this, &parser::parse_identifier, 
-//     //     {token_type::r_paren}, token_type::comma)
-//     // );
-//     // TRY_OPT(consume_and_advance_expecting(token_type::r_paren));
-//     //
-//     // return result;
-// }
 
 auto parser::parse_set_type(semantic_context const& ctx)
     -> parse_result<ast::set_type> {
     using enum token_type;
     return chain_parse(
         ctx,
-        default_action<ast::set_type>(*this), 
+        default_action<ast::set_type>, 
         keyword_set, keyword_of, &parser::parse_type
     );
 }
@@ -449,16 +305,10 @@ auto parser::parse_file_type(semantic_context const& ctx)
     using enum token_type;
     return chain_parse(
         ctx,
-        default_action<ast::file_type>(*this), 
+        default_action<ast::file_type>, 
         keyword_file, keyword_of, &parser::parse_type
     );
 }
-//
-//
-// auto parser::parse_subrange_type()
-//     -> parse_result<handle<ast::subrange_type>> {
-//     auto result = ast::subrange_type();
-// }
 //
 // auto parser::parse_procedure_declaration()
 //     -> parse_result<handle<ast::procedure_declaration>> {

@@ -22,6 +22,8 @@ using identifier_view = std::string_view;
 template<typename T>
 using group = std::vector<T>;
 template<typename T>
+using handle_group = group<handle<T>>;
+template<typename T>
 using maybe = std::optional<T>;
 
 struct program;

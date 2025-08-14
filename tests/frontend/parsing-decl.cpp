@@ -24,7 +24,7 @@ template<typename T, typename... Ts>
 struct first_t<T, Ts...> { using type = T; };
 template<typename... Ts>
 using first = typename first_t<Ts...>::type;
-TEST_CASE("Parsing type declarations", "[frontend][parsing]") {
+TEST_CASE("Parsing independant type declarations", "[frontend][parsing]") {
     using namespace fed;
     auto diagnostics = fed::diagnostics_buffer();
     auto ctx         = make_default_context();
@@ -57,6 +57,9 @@ TEST_CASE("Parsing type declarations", "[frontend][parsing]") {
         auto parse_case = parse_type_case case_info;\
         parser.remount(parse_case.source);\
         auto parse_res = parser.parse_type(ctx);\
+        if (parser.current_mode() != parser::mode::unchained) {\
+            FAIL("parser poopoo");\
+        }\
         if (not parse_res.has_value()) {\
             FAIL(parse_res.error().message());\
         }\
@@ -293,6 +296,29 @@ TEST_CASE("Parsing type declarations", "[frontend][parsing]") {
         }
 
     }
+}
+
+TEST_CASE("Parsing dependant type declarations", "[frontend][seman][parser]") {
+    auto diag   = fed::diagnostics_buffer();
+    auto ctx    = make_default_context();
+    auto parser = fed::parser(""_fv, diag);
+    parser.remount(
+        "type\n"
+        "   Alias = Integer;\n"
+        "   Alias2 = Alias;\n"
+        "   EnumConsts = (Mon, Tue, Wed, Thur, Fri, Sat, Sun);\n"
+        "   RangeFromEnum = Mon..Fri;\n"
+        ""_fv
+    );
+    auto _ = parser.parse_type_definitions(ctx);
+
+    if (diag.current_error_count() > 0) {
+        diag.flush();
+        FAIL("Should parse smoothly");
+    } else {
+        SUCCEED();
+    }
+
 }
 
 template<>

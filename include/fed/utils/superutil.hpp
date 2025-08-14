@@ -41,6 +41,10 @@ private:
 };
 
 namespace fed {
+template<typename T1, typename T2>
+concept uref = std::same_as<std::remove_cvref_t<T1>, T2>; 
+template<typename T1, typename T2>
+using copy_cref = decltype(std::forward_like<T1>(std::declval<T2>()));
 inline constexpr auto id = [](auto&& val) -> decltype(auto) { return FWD(val); };
 template<auto...> struct any { constexpr explicit(false) any(auto&&...) noexcept {} };
 template<std::size_t Index>

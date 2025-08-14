@@ -24,8 +24,10 @@ parser::parser(
 
 auto parser::breach_token_monitor(token_type token) 
     -> void {
+    if (token == token_type::empty) return;
     switch (current_mode()) {
         case mode::unchained: {
+            if (token == token_type::empty) break;
             if (current_token_is(equal_to(token))) {
                 consume_and_advance();
             } else {
@@ -36,6 +38,7 @@ auto parser::breach_token_monitor(token_type token)
         }
         case mode::probing: 
         case mode::contamination: {
+            if (token == token_type::empty) break;
             if (advance_until(equal_to(token))) {
                 consume_and_advance();
                 m_mode = mode::unchained;
@@ -45,6 +48,7 @@ auto parser::breach_token_monitor(token_type token)
             break;
         }
         case mode::osogof: {
+            if (token == token_type::empty) break;
             if (current_token_is(equal_to(token))) {
                 m_mode = mode::unchained;
                 consume_and_advance();
