@@ -5,6 +5,7 @@
 #include <memory>
 
 #include <fmt/core.h>
+#include <ranges>
 
 #include "fed/utils/superutil.hpp"
 #include "fed/diagnostics/internal-error.hpp"
@@ -18,8 +19,6 @@ class handle {
 public:
     handle() 
         : m_handle(nullptr) {}
-    handle(T&& val)
-        : m_handle(std::make_unique<T>(std::move(val))) {}
     template<typename... Us>
     handle(Us&&... args)
         : m_handle(std::make_unique<T>(FWD(args)...)) {}
@@ -28,12 +27,6 @@ public:
     template<typename U>
     handle(handle<U>&& derived)
         : m_handle(std::move(derived)) {}
-    auto operator=(T&& val)
-        -> handle& {
-        m_handle = std::make_unique<T>(std::move(val));
-
-        return *this;
-    }
     constexpr handle(poison_t) noexcept
         :m_handle(nullptr) {}
     auto operator=(handle const&) = delete;
@@ -103,10 +96,17 @@ public:
     auto is_poisoned() const
         -> bool { return m_handle == nullptr; }
     auto value_or(T val) const
-        -> T 
-        requires std::copyable<T> {
+        -> T {
+        // requires std::copyable<T> {
         return is_poisoned() ? std::move(val) : *m_handle;
     }
+    template<typename Self>
+    auto unsafe_value(this Self&& self) noexcept
+        -> decltype(auto) { 
+        return std::forward_like<Self>(*self.m_handle); 
+    }
+    auto unsafe_ptr() const noexcept
+        -> T* { return m_handle.get(); }
 
     constexpr auto operator==(handle const& other) const noexcept
         -> bool {
@@ -118,6 +118,8 @@ private:
     std::unique_ptr<T> m_handle{};
 
 };
+template<typename U>
+handle(U&&) -> handle<std::remove_cvref_t<U>>;
 // non - owning, immutable handle
 template<typename T>
 class observer_handle {
@@ -129,7 +131,6 @@ public:
     
     constexpr observer_handle(T const* ptr)
         : m_handle(ptr) {
-        if (ptr == nullptr) throw internal_error("observer_handle cannot be constructed from nullptr");
     }
     constexpr observer_handle(T const& val)
         : m_handle(std::addressof(val)) {}
@@ -149,6 +150,12 @@ public:
             return std::remove_cvref_t<std::invoke_result_t<decltype(f), T const&>>(poison_pill);
         return std::invoke(FWD(f), *this->m_handle);
     }
+    template<typename F>
+    auto transform(F&& f) const noexcept
+        -> observer_handle<std::remove_cvref_t<std::invoke_result_t<F, T const&>>> {
+        if (is_poisoned()) { return poison_pill; }
+        return std::invoke(FWD(f), *m_handle);
+    }
 
     template<typename F, typename... Ts>
     friend auto then_all(F&& func, observer_handle<Ts>... handles)
@@ -159,8 +166,15 @@ public:
         requires std::movable<T> {
         return is_poisoned() ? std::move(val) : *m_handle;
     }
+    auto ref_or(T&&) = delete;
+    auto ref_or(T const& val) const 
+        -> T const& { 
+        return is_poisoned() ? val : *m_handle;
+    }
     auto unsafe_value() const noexcept 
         -> T const& { return *m_handle; }
+    auto unsafe_ptr() const noexcept
+        -> T const* { return m_handle; }
 
     constexpr auto operator==(observer_handle const& other) const noexcept
         -> bool {
@@ -173,6 +187,20 @@ public:
 private:
     T const* m_handle;
 };
+template<typename T>
+inline constexpr auto get_if = 
+    []<typename... Ts>(observer_handle<std::variant<Ts...>> v) 
+    -> observer_handle<T> {
+        return std::get_if<T>(v.unsafe_ptr());
+    };
+inline constexpr auto all_unpoisoned_map =
+    [](auto&& r, auto&& out, auto&& map) {
+        for (auto&& elem : r) {
+            if (not elem.is_poisoned()) {
+                *out++ = map(elem.unsafe_value());
+            }
+        }
+    };
 
 template<typename F, typename... Ts>
 auto then_all(F&& func, observer_handle<Ts>... handles)
@@ -194,7 +222,7 @@ struct fmt::formatter<fed::ast::handle<T>> : indentable {
     constexpr auto format(fed::ast::handle<T> const& hndl, fmt::format_context& ctx) const {
         if (hndl.is_poisoned()) {
             ctx.out() = indent(ctx);
-            return fmt::format_to(ctx.out(), "poisoned\n");
+            return fmt::format_to(ctx.out(), "poisoned");
         } else {
             return fmt::formatter<T>{same_level()}.format(*hndl, ctx);
         }

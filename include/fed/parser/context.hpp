@@ -83,11 +83,13 @@ public:
     auto add_function(ast::function_declaration)
         -> semantic_result<void>;
     auto add_variable(ast::variable_declaration)
-        -> semantic_result<void>;
+        -> semantic_result<ast::variable_id>;
     auto add_constant(ast::constant_declaration)
         -> semantic_result<void>;
 
     auto maybe_sploink_enum(type_observer)
+        -> semantic_result<void>;
+    auto expose_records_fields(std::span<ast::variable_id>)
         -> semantic_result<void>;
 
     auto get_poison_type() const 

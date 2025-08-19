@@ -28,24 +28,34 @@ inline constexpr auto default_action =
     };
 
 
-inline constexpr auto make_some_parse = [](auto&& parse_func, token_type separator) {
-    using parse_res_t = many_parse_result<ast::group<ast::handle<
-        typename std::invoke_result_t<decltype(parse_func), parser&, semantic_context&>::value_type
-    >>>;
-    return [parse_func_ = FWD(parse_func), separator](auto&& parser, auto&& ctx) {
-        return parser.some_parse(FWD(ctx), std::move(parse_func_), separator);
+inline constexpr auto make_some_parse = [](
+    auto&& parse_func, token_type separator
+) {
+    return [parse_func_ = FWD(parse_func), separator](
+            auto&& parser, auto&& ctx
+        ) {
+        return parser.some_parse(
+            FWD(ctx), 
+            std::move(parse_func_), 
+            separator
+        );
     };
 };
-inline constexpr auto make_many_parse = [](auto&& parse_func, token_type separator) {
-    using parse_res_t = many_parse_result<ast::group<ast::handle<
-        typename std::invoke_result_t<decltype(parse_func), parser&, semantic_context&>::value_type
-    >>>;
-    return [parse_func_ = FWD(parse_func), separator](auto&& parser, auto&& ctx) {
-        return parser.many_parse(FWD(ctx), std::move(parse_func_), separator);
+inline constexpr auto make_many_parse = [](
+    auto&& parse_func, token_type separator
+) {
+    return [parse_func_ = FWD(parse_func), separator](
+        auto&& parser, auto&& ctx
+    ) {
+        return parser.many_parse(
+            FWD(ctx), std::move(parse_func_), separator
+        );
     };
 };
 inline constexpr auto make_chain_parse = [](auto&&... args) {
-    return [...args_ = FWD(args)](parser& parser, uref<semantic_context> auto&& ctx) {
+    return [...args_ = FWD(args)](
+        parser& parser, uref<semantic_context> auto&& ctx
+    ) {
         return parser.chain_parse(ctx, args_...);
     };
 };
@@ -73,5 +83,25 @@ inline constexpr auto repopulate_identifiers = [](
 
     return result;
 };
+inline constexpr auto parse_identifier_f = 
+    [](parser& parser, semantic_context& ctx) {
+        return parser.parse_identifier(ctx);
+    };
+inline constexpr auto parse_expression_f = 
+    [](parser& parser, semantic_context& ctx) {
+        return parser.parse_expression(ctx);
+    };
+inline constexpr auto parse_type_f = 
+    [](parser& parser, semantic_context& ctx) {
+        return parser.parse_type(ctx);
+    };
+inline constexpr auto parse_constant_f = 
+    [](parser& parser, semantic_context& ctx) {
+        return parser.parse_constant(ctx);
+    };
+inline constexpr auto parse_statement_f = 
+    [](parser& parser, semantic_context& ctx) {
+        return parser.parse_statement(ctx);
+    };
 }
 #endif

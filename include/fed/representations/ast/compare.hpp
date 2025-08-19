@@ -49,6 +49,18 @@ auto operator==(membered_expression const&, membered_expression const&) -> bool;
 auto operator==(binary_expression const&, binary_expression const&) -> bool;
 auto operator==(unary_expression const&, unary_expression const&) -> bool;
 
+auto operator==(assignment_statement const&, assignment_statement const&) -> bool;
+auto operator==(procedure_statement const&, procedure_statement const&) -> bool;
+auto operator==(empty_statement const&, empty_statement const&) -> bool;
+auto operator==(if_statement const&, if_statement const&) -> bool;
+auto operator==(case_t const&, case_t const&) -> bool;
+auto operator==(case_statement const&, case_statement const&) -> bool;
+auto operator==(with_statement const&, with_statement const&) -> bool;
+auto operator==(for_statement const&, for_statement const&) -> bool;
+auto operator==(repeat_statement const&, repeat_statement const&) -> bool;
+auto operator==(while_statement const&, while_statement const&) -> bool;
+auto operator==(compound_statement const&, compound_statement const&) -> bool;
+auto operator==(goto_statement const&, goto_statement const&) -> bool;
 
 }
 #endif

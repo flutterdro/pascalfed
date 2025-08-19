@@ -56,12 +56,20 @@ auto full_view::subview(iterator start, iterator end) const noexcept
     }; 
 }
 auto view::subview(std::size_t start, std::size_t count) const noexcept
-    -> view {}
+    -> view {
+    return view{
+    };
+}
 
 auto view::begin() const noexcept
-    -> iterator {}
+    -> iterator { 
+    return {
+        m_view.begin(),
+        m_marker
+    };
+}
 auto view::end() const noexcept
-    -> sentinel {}
+    -> sentinel { return m_view.end(); }
 auto view::data() const noexcept
     -> char const* { return m_view.data(); }
 static_assert(std::forward_iterator<full_view::iterator>);

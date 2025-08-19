@@ -83,6 +83,8 @@ public:
         -> token_view;
     auto current_token_is(std::predicate<token_type> auto&& pred)
         -> bool { return pred(current_token().type()); }
+    auto lookahead_token(std::size_t)
+        -> token_view;
     auto cursor() const noexcept
         -> source::iterator;
     auto diagnostics() noexcept
@@ -195,6 +197,27 @@ public:
     auto parse_real()
         -> parse_result<ast::real_literal>;
 
+    auto parse_statement(semantic_context&)
+        -> parse_result<ast::statement>;
+    auto parse_case_statement(semantic_context&)
+        -> parse_result<ast::case_statement>;
+    auto parse_if_statement(semantic_context&)
+        -> parse_result<ast::if_statement>;
+    auto parse_for_statement(semantic_context&)
+        -> parse_result<ast::for_statement>;
+    auto parse_repeat_statement(semantic_context&)
+        -> parse_result<ast::repeat_statement>;
+    auto parse_while_statement(semantic_context&)
+        -> parse_result<ast::while_statement>;
+    auto parse_compound_statement(semantic_context&)
+        -> parse_result<ast::compound_statement>;
+    auto parse_with_statement(semantic_context&)
+        -> parse_result<ast::with_statement>;
+    auto parse_assignment_statement(semantic_context&)
+        -> parse_result<ast::assignment_statement>;
+    auto parse_procedure_statement(semantic_context&)
+        -> parse_result<ast::procedure_statement>;
+
 private:
     auto determine_name_type(semantic_context const&, ast::identifier_view)
         -> ast::expression_atom;
@@ -208,7 +231,7 @@ private:
         -> parse_result<ast::expression>;
     auto parse_member_access(semantic_context const&, ast::expression)
         -> parse_result<ast::expression>;
-    auto parse_expression(semantic_context const&, ast::expression lhs, precedence::level threshold)
+    auto parse_expression_(semantic_context const&, ast::expression lhs, precedence::level threshold)
         -> parse_result<ast::expression>;
     auto parse_lhs(semantic_context const&, precedence::level threshold)
         -> parse_result<ast::expression>;
@@ -425,11 +448,6 @@ auto parser::many_parse(
     auto&& parse_func,
     token_type separator
 ) {
-    // if (current_token_is(equal_to(anchors().top()))) {
-    //     using parse_res_t = many_parse_result<
-    //         ast::group<ast::handle<get_parse_invoke_t<decltype(parse_func)>>>>;
-    //     return parse_res_t();
-    // }
     return some_parse(ctx, FWD(parse_func), separator);
 }
 

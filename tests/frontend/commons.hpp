@@ -49,12 +49,24 @@ inline auto make_alphabet_context()
 
     return context;
 }
-
+constexpr auto alphabet = []<std::size_t... Is>(std::index_sequence<Is...>) 
+    -> std::array<fed::ast::variable_name, 26> {
+    return {
+        fed::ast::variable_name{
+            .type = fed::poison_pill,
+            .id = fed::ast::variable_id{1 + Is},
+        }...
+    };
+}(std::make_index_sequence<26>());
+inline auto variable(char c) -> fed::ast::expression {
+    return alphabet[c - 'a'];
+}
 template<typename T>
 inline constexpr auto make_handle_list =[](auto&&... args) {
     auto result = fed::ast::group<fed::ast::handle<T>>();
-    (result.push_back(FWD(args)), ...);
+    (result.emplace_back(FWD(args)), ...);
     return result;
 };
+
 
 #endif

@@ -205,7 +205,7 @@ auto semantic_context::add_constant(ast::constant_declaration const_decl)
     return {};
 }
 auto semantic_context::add_variable(ast::variable_declaration var_decl)
-    -> semantic_result<void> {
+    -> semantic_result<ast::variable_id> {
     auto const [is_success, it] = names().insert(
         var_decl.name, 
         {
@@ -216,6 +216,7 @@ auto semantic_context::add_variable(ast::variable_declaration var_decl)
     if (is_success) {
         auto const id = table().add(std::move(var_decl));
         it->second.id = std::to_underlying(id);
+        return id;
     }
     
     return {};   
@@ -229,6 +230,35 @@ auto semantic_context::synthesize_dummy_expression() const
     };
 }
 
+template<typename R, typename T>
+concept view_of = 
+    std::ranges::view<R> && 
+    std::same_as<
+        std::ranges::range_value_t<R>, 
+        T
+    >;
+auto check_overlap() {}
+auto semantic_context::expose_records_fields(
+    std::span<ast::variable_id> v_ids
+)   -> semantic_result<void> {
+    for (auto v_id : v_ids) {
+        auto type = type_from_id(v_id);
+        auto record_type = ast::get_if<ast::record_type>(type);
+        auto const alt = ast::handle_group<ast::fixed_field>();
+        auto const& fields = record_type
+            .transform(member(&ast::record_type::fixed_fields))
+            .ref_or(alt);
+        for (auto&& field_h : fields) {
+            if (field_h.is_poisoned()) continue;
+            auto& field = field_h.unsafe_value();
+            auto _  = add_variable(ast::variable_declaration{
+                .name = field.name,
+                .type = ast::clone(field.type),
+            });
+        }
+    }
+    return {};
+}
 
 namespace {
 template<typename T>

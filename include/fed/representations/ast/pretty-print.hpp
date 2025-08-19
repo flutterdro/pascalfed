@@ -8,6 +8,9 @@
 #include "fed/representations/ast/forward.hpp"
 
 
+//
+/// EXPRESSION PRETTY PRINT 
+//
 template<>
 struct fmt::formatter<fed::ast::expression> : indentable {
     constexpr auto parse(fmt::format_parse_context& ctx) {
@@ -125,6 +128,10 @@ struct fmt::formatter<fed::ast::constant> : indentable {
         fmt::format_context& ctx
     ) const -> fmt::format_context::iterator;
 };
+
+//
+/// TYPE PRETTY PRINT
+//
 
 template<>
 struct fmt::formatter<fed::ast::type> : indentable {
@@ -278,6 +285,154 @@ struct fmt::formatter<fed::ast::file_type> : indentable {
         fed::ast::file_type const& exp, 
         fmt::format_context& ctx
     ) const -> fmt::format_context::iterator;
+};
+
+
+//
+/// STATEMENTS PRETTY PRINT
+//
+
+template<>
+struct fmt::formatter<fed::ast::statement> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::statement const& stmt,
+        fmt::format_context& ctx
+) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::assignment_statement> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::assignment_statement const& stmt,
+        fmt::format_context& ctx
+) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::procedure_statement> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::procedure_statement const& stmt,
+        fmt::format_context& ctx
+) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::empty_statement> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::empty_statement const& stmt,
+        fmt::format_context& ctx
+) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::if_statement> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::if_statement const& stmt,
+        fmt::format_context& ctx
+) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::case_t> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::case_t const& stmt,
+        fmt::format_context& ctx
+) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::case_statement> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::case_statement const& stmt,
+        fmt::format_context& ctx
+) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::with_statement> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::with_statement const& stmt,
+        fmt::format_context& ctx
+) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::for_statement> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::for_statement const& stmt,
+        fmt::format_context& ctx
+) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::repeat_statement> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::repeat_statement const& stmt,
+        fmt::format_context& ctx
+) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::while_statement> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::while_statement const& stmt,
+        fmt::format_context& ctx
+) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::compound_statement> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::compound_statement const& stmt,
+        fmt::format_context& ctx
+) const -> fmt::format_context::iterator;
+};
+
+template<>
+struct fmt::formatter<fed::ast::goto_statement> : indentable {
+    constexpr auto parse(fmt::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(
+        fed::ast::goto_statement const& stmt,
+        fmt::format_context& ctx
+) const -> fmt::format_context::iterator;
 };
 
 #endif

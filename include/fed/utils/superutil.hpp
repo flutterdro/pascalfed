@@ -41,8 +41,21 @@ private:
 };
 
 namespace fed {
+
+inline constexpr auto transform = [](auto&& f) {
+    return [f_ = FWD(f)](auto&& val) { return val.transform(f_); };
+};
+inline constexpr auto and_then = [](auto&& f) {
+    return [f_ = FWD(f)](auto&& val) { return val.and_then(f_); };
+};
 template<typename T1, typename T2>
 concept uref = std::same_as<std::remove_cvref_t<T1>, T2>; 
+inline constexpr auto member = 
+    []<typename T, typename U>(U T::* m) {
+        return [=](uref<T> auto&& v) -> decltype(auto) {
+            return std::forward_like<decltype(v)>(v.*m);
+        };
+    };
 template<typename T1, typename T2>
 using copy_cref = decltype(std::forward_like<T1>(std::declval<T2>()));
 inline constexpr auto id = [](auto&& val) -> decltype(auto) { return FWD(val); };

@@ -16,6 +16,7 @@ target_sources(frontend_tests
         frontend/parsing-expressions.cpp
         frontend/parsing-decl.cpp
         frontend/parsing-recovery.cpp
+        frontend/parsing-stmts.cpp
         frontend/ctx-symtable.cpp
 )
 

@@ -122,6 +122,33 @@ using expression = variant<
     expression_leaf
 >;
 
+struct assignment_statement;
+struct procedure_statement;
+struct empty_statement;
+struct if_statement;
+struct case_t;
+struct case_statement;
+struct with_statement;
+struct for_statement;
+struct repeat_statement;
+struct while_statement;
+struct compound_statement;
+struct goto_statement;
+
+using statement = variant<
+    assignment_statement,
+    procedure_statement,
+    empty_statement,
+    if_statement,
+    case_statement,
+    with_statement,
+    for_statement,
+    repeat_statement,
+    while_statement,
+    compound_statement,
+    goto_statement 
+>;
+
 } // namespace fed
 
 #endif

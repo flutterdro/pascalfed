@@ -1,27 +1,18 @@
 #ifndef FED_PARSE_TREE_HPP_
 #define FED_PARSE_TREE_HPP_
 
-#include "fed/diagnostics/internal-error.hpp"
 #include "fed/parser/context.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/representations/ast/handle.hpp"
 #include "fed/representations/ast/forward.hpp"
-#include "fed/utils/superutil.hpp"
 
 #include <cstddef>
 #include <fmt/base.h>
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
-#include <functional>
-#include <memory>
-#include <string_view>
-#include <type_traits>
-#include <unordered_map>
-#include <utility>
 #include <variant>
 #include <optional>
-#include <vector>
 
 namespace fed {
 }
@@ -312,6 +303,68 @@ struct membered_expression {
     identifier            member;
 };
 
+
+//
+/// STATEMENTS
+//
+struct empty_statement {};
+
+struct assignment_statement {
+    variable_id        variable;
+    handle<expression> value;
+};
+
+struct procedure_statement {
+    procedure_id             procedure;
+    handle_group<expression> call_args;
+};
+
+struct if_statement {
+    handle<expression>        condition;
+    handle<statement>         then_case;
+    maybe<handle<statement>>  else_case;
+};
+struct case_t {
+    handle_group<constant> values;
+    handle<statement>      action;  
+};
+struct case_statement {
+    handle<expression>   case_index;
+    handle_group<case_t> cases;
+};
+
+struct while_statement {
+    handle<expression> condition;
+    handle<statement>  action;
+};
+
+struct repeat_statement {
+    handle<expression> condition;
+    handle<statement>  action;
+};
+
+struct for_statement {
+    semantic_context   ctx;
+    variable_id        control_variable;
+    enum class iteration_t {
+        ascending, descending, bad
+    } iteration;
+    handle<expression> initial_value;
+    handle<expression> final_value;
+    handle<statement>  action;
+};
+
+struct with_statement {
+    semantic_context   ctx;
+    group<variable_id> variables;
+    handle<statement>  action;
+};
+
+struct compound_statement {
+    handle_group<statement> statements;
+};
+
+struct goto_statement {};
 
 
 

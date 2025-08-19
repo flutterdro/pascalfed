@@ -18,15 +18,7 @@
 
 //
 
-constexpr auto alphabet = []<std::size_t... Is>(std::index_sequence<Is...>) 
-    -> std::array<fed::ast::variable_name, 26> {
-    return {
-        fed::ast::variable_name{
-            .type = fed::poison_pill,
-            .id = fed::ast::variable_id{1 + Is},
-        }...
-    };
-}(std::make_index_sequence<26>());
+
 auto make_binary_expression(fed::ast::binary_operation op, char lhs, char rhs) 
     -> fed::ast::expression {
     return fed::ast::binary_expression{
@@ -142,6 +134,25 @@ TEST_CASE("Parsing binary expressions", "[frontend][parsing]") {
     } 
 
 }
+
+TEST_CASE("Parsing constants", "[parsing][frontend]") {
+    auto diag   = fed::diagnostics_buffer();
+    auto parser = fed::parser(""_fv, diag);
+    auto ctx    = make_default_context();
+
+    SECTION("integer constants") {
+        parser.remount("\n1:"_fv);
+        auto res_exp = parser.parse_constant(ctx);
+        auto expected = ast::constant(ast::integer_literal(1));
+        if (res_exp.has_value()) {
+            CHECK(*res_exp == expected);
+        } else {
+            FAIL(res_exp.error().message());
+        }
+    }
+}
+
+
 }
 
 

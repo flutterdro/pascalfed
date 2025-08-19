@@ -1,7 +1,6 @@
 #include "fed/parser/parser.hpp"
 #include "fed/diagnostics/buffer.hpp"
 #include "fed/diagnostics/compile-error.hpp"
-#include "fed/parser/context.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/scanner/token.hpp"
 #include <variant>
@@ -27,7 +26,6 @@ auto parser::breach_token_monitor(token_type token)
     if (token == token_type::empty) return;
     switch (current_mode()) {
         case mode::unchained: {
-            if (token == token_type::empty) break;
             if (current_token_is(equal_to(token))) {
                 consume_and_advance();
             } else {
@@ -38,7 +36,6 @@ auto parser::breach_token_monitor(token_type token)
         }
         case mode::probing: 
         case mode::contamination: {
-            if (token == token_type::empty) break;
             if (advance_until(equal_to(token))) {
                 consume_and_advance();
                 m_mode = mode::unchained;
@@ -48,7 +45,6 @@ auto parser::breach_token_monitor(token_type token)
             break;
         }
         case mode::osogof: {
-            if (token == token_type::empty) break;
             if (current_token_is(equal_to(token))) {
                 m_mode = mode::unchained;
                 consume_and_advance();
@@ -93,6 +89,8 @@ auto parser::consume_and_advance()
     m_lexer.advance_lexer();
     return token;
 }
+auto parser::lookahead_token(std::size_t k)
+    -> token_view { return m_lexer.lookahead(k); }
 auto parser::diagnostics() noexcept
     -> diagnostics_buffer& { return m_diagnostics; }
 auto parser::push_error(compilation_error err) 

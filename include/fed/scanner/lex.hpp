@@ -4,12 +4,16 @@
 #include "fed/diagnostics/buffer.hpp"
 #include "token.hpp"
 #include "fed/representations/raw-source.hpp"
+#include "fed/scanner/token_queue.hpp"
 
+#include <queue>
 #include <string_view>
 
 namespace fed {
 
 struct lexer {
+
+    using token_cache = token_queue;
 
     lexer(diagnostics_buffer&, source::full_view);
 
@@ -20,9 +24,8 @@ struct lexer {
         -> void;
 
     struct backup {
-        bool is_relexing;
         source::iterator cursor;
-        token_view cached_token;
+        token_cache cache;
     };
     auto preserve()
         -> backup;
@@ -32,7 +35,11 @@ struct lexer {
     auto cursor() const noexcept
         -> source::iterator;
 
-    [[nodiscard]]auto lex_next_token() noexcept
+    auto lookahead(std::size_t)
+        -> token_view;
+    auto uncached_lex_next_token() noexcept
+        -> token_view;
+    auto lex_next_token() noexcept
         -> token_view;
     auto advance_lexer()
         -> void;
@@ -53,8 +60,7 @@ struct lexer {
     diagnostics_buffer& m_buffer;
     source::full_view m_source;
     source::iterator m_cursor;
-    token_view m_cached_token;
-    bool m_is_relexing;
+    token_cache m_token_cache;
 };
 
 

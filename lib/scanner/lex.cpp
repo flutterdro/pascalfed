@@ -22,38 +22,37 @@ lexer::lexer(diagnostics_buffer& buffer, source::full_view view)
         m_buffer(buffer),
         m_source(view), 
         m_cursor(m_source.begin()),
-        m_cached_token(),
-        m_is_relexing(false)
+        m_token_cache()
 {}
 
 auto lexer::remount(source::full_view view) 
     -> void {
     m_source = view;
     m_cursor = view.begin();
-    m_cached_token = {};
-    m_is_relexing = false;
+    m_token_cache.clear();
 }
 
 auto lexer::cursor() const noexcept
     -> source::iterator { return m_cursor; }
 
 auto lexer::preserve() 
-    -> backup { return {m_is_relexing, m_cursor, m_cached_token}; }
+    -> backup { 
+    return {m_cursor, m_token_cache};
+}
 auto lexer::restore(backup bu) 
     -> void {
-    m_is_relexing = bu.is_relexing;
     m_cursor = bu.cursor;
-    m_cached_token = bu.cached_token;
+    m_token_cache = std::move(bu.cache);
 }
 
 auto lexer::advance_lexer()
     -> void {
-    // TODO: add error handling
-    // probably throw an exception
-    if (m_cached_token.m_type == token_type::eof) { return; }
-    if (not m_is_relexing) {}
-
-    m_is_relexing = false;
+    // if lexer is unadvanced then do nothing
+    if (m_token_cache.empty()) return;
+    // when we reach eof then our lexer should just 
+    // perpetually return eof token
+    if (m_token_cache.front().type() == token_type::eof) return;
+    m_token_cache.pop();
 }
 
 auto check_for_keyword(std::string_view identifier) 
@@ -190,6 +189,7 @@ auto lexer::lex_as_number() noexcept
             case '.': {
                 auto lookahead = m_cursor;
                 ++lookahead;
+                // check for '..' token
                 if (lookahead != m_source.end()) {
                     if (*lookahead == '.') {
                         end = m_cursor;
@@ -227,7 +227,11 @@ auto lexer::lex_as_number() noexcept
                 }
                 break;
             }
-            default: continue_loop = false;
+            default: {
+                end = m_cursor;
+                continue_loop = false;
+                break;
+            }
         }
        
     }
@@ -237,17 +241,32 @@ exit:
         .m_type = result_token_type,
     };
 }
-
-auto lexer::lex_next_token() noexcept 
+auto lexer::lookahead(std::size_t n) 
     -> token_view {
-    auto result = token_view();
-    
+    auto const in_need_of_catching_up = 
+        n + 1 > m_token_cache.size();
+    if (in_need_of_catching_up) {
+        auto const catch_up_amount =
+            n + 1 - m_token_cache.size();
+        for (std::size_t i = 0; i < catch_up_amount; ++i) {
+            m_token_cache.push(uncached_lex_next_token());
+        }
+    }
+
+    return m_token_cache[n];
+}
+auto lexer::lex_next_token() noexcept
+    -> token_view {
     // if we call this without prior advance_lexer() 
     // then we can just return cached result
-    if (m_is_relexing) {
-        result = m_cached_token;
-        return result;
-    }
+    if (m_token_cache.empty()) {
+        m_token_cache.push(uncached_lex_next_token());
+    } 
+    return m_token_cache.front();
+}
+auto lexer::uncached_lex_next_token() noexcept 
+    -> token_view {
+    auto result = token_view();
     
     // skip whitespaces etc
     m_cursor = stdr::find_if(
@@ -457,9 +476,6 @@ auto lexer::lex_next_token() noexcept
             break;
         }
     }
-
-    m_is_relexing = true;
-    m_cached_token = result;
 
     return result;
 }

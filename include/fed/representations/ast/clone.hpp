@@ -2,6 +2,7 @@
 #define FED_AST_CLONNING_HPP_
 
 #include "fed/representations/ast/forward.hpp"
+#include "fed/representations/ast/handle.hpp"
 #include "fed/utils/superutil.hpp"
 #include <iterator>
 
@@ -47,6 +48,15 @@ auto clone(group<T> const& val) -> group<T> {
 template<typename T>
 auto clone(maybe<T> const& val) -> maybe<T> {
     return val.transform(LIFT(clone));
+}
+
+template<typename T>
+auto materialize(observer_handle<T> obs)
+    -> handle<T> { 
+    return obs.and_then([](T const& val)
+        -> handle<T> {
+        return ast::clone(val);
+    });
 }
 
 

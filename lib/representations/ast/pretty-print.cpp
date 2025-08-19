@@ -1,10 +1,26 @@
 #include <fmt/base.h>
 #include <utility>
+#include <fmt/ranges.h>
 #include "fed/representations/ast.hpp"
+#include "fed/representations/ast/handle.hpp"
 #include "fed/representations/ast/nodes.hpp"
+#include "fed/utils/superutil.hpp"
 #include "fed/representations/ast/pretty-print.hpp"
 
 using namespace fed;
+template<typename T>
+auto ast_format(
+    indentable indt, 
+    T const& expr,
+    fmt::format_context& ctx
+) -> fmt::format_context::iterator {
+    return fmt::formatter<T>(indt).format(expr, ctx);
+}
+
+//
+/// EXPRESSION PRETTY PRINT 
+//
+
 auto fmt::formatter<ast::expression>::format(
     ast::expression const& val, 
     fmt::format_context& ctx
@@ -138,6 +154,10 @@ auto fmt::formatter<ast::constant>::format(
     ctx.out() = indentable::indent(ctx);
     return fmt::format_to(ctx.out(), "constant: to be implemented");
 }
+
+//
+/// TYPE PRETTY PRINT 
+//
 
 auto fmt::formatter<ast::type>::format(
     ast::type const& val, 
@@ -284,3 +304,147 @@ auto fmt::formatter<ast::procedure_type>::format(
     ctx.out() = indentable::indent(ctx);
     return fmt::format_to(ctx.out(), "to be implemented");
 }
+auto fmt::formatter<ast::statement>::format(
+    ast::statement const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+     return std::visit([&]<typename T>(T const& v) {
+        return fmt::formatter<T>{indentable::same_level()}
+            .format(v, ctx);
+    }, val);
+}
+
+auto fmt::formatter<ast::assignment_statement>::format(
+    ast::assignment_statement const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+
+auto fmt::formatter<ast::procedure_statement>::format(
+    ast::procedure_statement const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+
+auto fmt::formatter<ast::empty_statement>::format(
+    ast::empty_statement const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "empty statement");
+}
+
+auto fmt::formatter<ast::if_statement>::format(
+    ast::if_statement const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    ctx.out() = fmt::format_to(ctx.out(), "if statement\n");
+    auto indt = new_level();
+    ctx.out() = indt.indent(ctx);
+    ctx.out() = fmt::format_to(ctx.out(), "condition:\n");
+    ctx.out() = ast_format(indt.new_level(), val.condition, ctx);
+    *ctx.out()++ = '\n';
+    ctx.out() = indt.indent(ctx);
+    ctx.out() = fmt::format_to(ctx.out(), "then:\n");
+    ctx.out() = ast_format(indt.new_level(), val.then_case, ctx);
+    if (val.else_case.has_value()) {
+        *ctx.out()++ = '\n';
+        ctx.out() = indt.indent(ctx);
+        ctx.out() = fmt::format_to(ctx.out(), "else:\n");
+        ctx.out() = ast_format(indt.new_level(), *val.else_case, ctx);
+    }
+    return ctx.out();
+}
+
+auto fmt::formatter<ast::case_t>::format(
+    ast::case_t const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    ctx.out() = fmt::format_to(
+        ctx.out(), 
+        "match {}:\n", fmt::join(val.values, ", ")
+    );
+    ctx.out() = fmt::formatter<
+        ast::handle<ast::statement>
+    >(new_level()).format(val.action, ctx);
+    return ctx.out();
+}
+
+auto fmt::formatter<ast::case_statement>::format(
+    ast::case_statement const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    ctx.out() = fmt::format_to(ctx.out(), "case statement\n");
+    ctx.out() = fmt::formatter<
+        ast::handle<ast::expression>
+    >(new_level()).format(val.case_index, ctx);
+    for (auto&& case_ : val.cases) {
+        *ctx.out()++ = '\n';
+        ctx.out() = fmt::formatter<
+            ast::handle<ast::case_t>
+        >(new_level()).format(case_, ctx);
+    }
+    return ctx.out();
+}
+
+auto fmt::formatter<ast::with_statement>::format(
+    ast::with_statement const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+
+auto fmt::formatter<ast::for_statement>::format(
+    ast::for_statement const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+
+auto fmt::formatter<ast::repeat_statement>::format(
+    ast::repeat_statement const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+
+auto fmt::formatter<ast::while_statement>::format(
+    ast::while_statement const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+
+auto fmt::formatter<ast::compound_statement>::format(
+    ast::compound_statement const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+
+auto fmt::formatter<ast::goto_statement>::format(
+    ast::goto_statement const& val, 
+    fmt::format_context& ctx
+) const -> fmt::format_context::iterator {
+    ctx.out() = indentable::indent(ctx);
+    return fmt::format_to(ctx.out(), "to be implemented");
+}
+
+
+// 
+/// STATEMENT PRETTY PRINT 
+// 
+
+

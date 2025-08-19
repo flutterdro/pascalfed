@@ -133,4 +133,92 @@ auto operator==(unary_expression const& lhs, unary_expression const& rhs)
            lhs.operand == rhs.operand;
 }
 
+//
+/// STATEMENT COMPARISONS
+// 
+
+auto operator==(
+    assignment_statement const& lhs,
+    assignment_statement const& rhs
+)   -> bool {
+    return lhs.variable == rhs.variable and lhs.value == rhs.value;
+}
+auto operator==(
+    procedure_statement const& lhs,
+    procedure_statement const& rhs
+) -> bool {
+    return lhs.procedure == rhs.procedure and 
+    std::ranges::equal(lhs.call_args, rhs.call_args);
+}
+auto operator==(
+    empty_statement const& lhs,
+    empty_statement const& rhs
+)   -> bool {
+    return true;
+}
+auto operator==(
+    if_statement const& lhs,
+    if_statement const& rhs
+)   -> bool {
+    return lhs.condition == rhs.condition and
+    lhs.then_case == rhs.then_case and
+    lhs.else_case == rhs.else_case;
+}
+auto operator==(case_t const& lhs, case_t const& rhs)
+    -> bool {
+    return std::ranges::equal(lhs.values, rhs.values) and 
+    lhs.action == rhs.action;
+}
+auto operator==(
+    case_statement const& lhs,
+    case_statement const& rhs
+)   -> bool {
+    return lhs.case_index == rhs.case_index and
+    std::ranges::equal(lhs.cases, rhs.cases);
+}
+
+auto operator==(
+    with_statement const& lhs,
+    with_statement const& rhs
+)   -> bool {
+    return std::ranges::equal(lhs.variables, rhs.variables) and 
+    lhs.action == rhs.action;
+}
+auto operator==(
+    for_statement const& lhs,
+    for_statement const& rhs
+)   -> bool {
+    return lhs.initial_value == rhs.initial_value and 
+    lhs.final_value == rhs.final_value and
+    lhs.iteration == rhs.iteration and
+    lhs.action == rhs.action;
+}
+auto operator==(
+    repeat_statement const& lhs,
+    repeat_statement const& rhs
+)   -> bool {
+    return lhs.condition == rhs.condition and 
+    lhs.action == rhs.action;
+}
+auto operator==(
+    while_statement const& lhs,
+    while_statement const& rhs
+)   -> bool {
+    return lhs.condition == rhs.condition and 
+    lhs.action == rhs.action;
+}
+auto operator==(
+    compound_statement const& lhs,
+    compound_statement const& rhs
+)   -> bool {
+    return std::ranges::equal(lhs.statements, rhs.statements);
+}
+auto operator==(
+    goto_statement const&,
+    goto_statement const&
+)   -> bool {
+    return false;
+}
+
+
 }

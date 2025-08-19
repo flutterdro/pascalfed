@@ -1,6 +1,7 @@
 #include "fed/diagnostics/compile-error.hpp"
 #include "fed/diagnostics/internal-error.hpp"
 #include "fed/parser/context.hpp"
+#include "fed/parser/parse_error.hpp"
 #include "fed/parser/parser.hpp"
 #include "fed/representations/ast.hpp"
 #include "fed/representations/ast/nodes.hpp"
@@ -142,7 +143,7 @@ inline constexpr auto binary_operator_precedence = [](token_type type) {
         }
     };
 
-auto parser::parse_expression(
+auto parser::parse_expression_(
     semantic_context const& ctx,
     ast::expression lhs, 
     precedence::level threshold
@@ -166,7 +167,7 @@ auto parser::parse_expression(
 
     if (auto new_threshold = binary_operator_precedence(token);
         new_threshold > threshold) {
-        lhs = parse_expression(ctx, std::move(lhs), new_threshold)
+        lhs = parse_expression_(ctx, std::move(lhs), new_threshold)
             .transform_error(LIFT_MEMBER(push_error))
             .value_or(ctx.synthesize_dummy_expression());
     }
@@ -217,7 +218,9 @@ auto parser::parse_expression_leaf(semantic_context const& ctx)
         //case string literal 
         //case character literal 
         default: {
-            return std::unexpected(parse_error());
+            return std::unexpected(dummy_error(
+                cursor().where(), "not an expression"
+            ));
         }
     }
 }
@@ -309,7 +312,9 @@ auto parser::parse_call(semantic_context const& ctx, ast::expression base)
             break;
         } else if (current_token().type() == token_type::semicolon) {
             // TODO: error missing ')'
-            return std::unexpected(parse_error());
+            return std::unexpected(missing_token(
+                cursor().where(), token_type::r_paren
+            ));
         } else {
             
         }
@@ -363,7 +368,9 @@ auto parser::parse_indexing(semantic_context const& ctx, ast::expression base)
             break;
         } else if (current_token().type() == token_type::semicolon) {
             // TODO: error missing ']'
-            return std::unexpected(parse_error());
+            return std::unexpected(missing_token(
+                cursor().where(), token_type::r_square
+            ));
         } else {
             
         }
@@ -460,15 +467,22 @@ auto parser::determine_name_type(semantic_context const& ctx, ast::identifier_vi
 auto parser::parse_integer()
     -> parse_result<ast::integer_literal> {
     if (current_token_is(not equal_to(token_type::number_integer))) {
-        return std::unexpected(parse_error());
+        return std::unexpected(
+            dummy_error(cursor().where(), "not integer")
+        );
     }
     auto tok = consume_and_advance().view();
+    fmt::println("{}", tok.base());
     auto number = int(0);
     auto [ptr, ec] = std::from_chars(tok.data(), tok.data() + tok.size(), number);
     if (ec == std::errc::invalid_argument) {
-        throw fed::internal_error("wiwiwi");
+        return std::unexpected(dummy_error(
+            cursor().where(), "invalid int format"
+        ));
     } else if (ec == std::errc::result_out_of_range) {
-        return std::unexpected(parse_error());
+        return std::unexpected(dummy_error(
+            cursor().where(), "int oor"
+        ));
     }
     return ast::integer_literal{
         .value = number,
