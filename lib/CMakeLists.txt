@@ -28,8 +28,8 @@ target_sources(fed_frontend
         parser/parser-statements.cpp
         parser/parser-expressions.cpp
         parser/parser.cpp
-        parser/context.cpp
         parser/anchor-stack.cpp
+        seman/context.cpp
         diagnostics/buffer.cpp
         representations/raw-source.cpp
 )

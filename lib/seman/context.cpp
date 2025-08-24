@@ -1,6 +1,5 @@
-#include "fed/parser/context.hpp"
+#include "fed/seman/context.hpp"
 #include "fed/diagnostics/compile-error.hpp"
-#include "fed/parser/semantic-error.hpp"
 #include "fed/representations/ast.hpp"
 #include "fed/representations/ast/forward.hpp"
 #include "fed/representations/ast/handle.hpp"

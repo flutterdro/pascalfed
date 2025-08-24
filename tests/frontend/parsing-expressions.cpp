@@ -1,6 +1,5 @@
 #include "fed/diagnostics/buffer.hpp"
 #include "fed/diagnostics/internal-error.hpp"
-#include "fed/parser/context.hpp"
 #include "fed/parser/parser.hpp"
 #include "fed/representations/ast.hpp"
 #include "fed/representations/ast/forward.hpp"

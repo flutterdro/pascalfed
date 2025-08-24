@@ -3,7 +3,7 @@
 
 #include "fed/diagnostics/buffer.hpp"
 #include "fed/diagnostics/internal-error.hpp"
-#include "fed/parser/context.hpp"
+#include "fed/seman/context.hpp"
 #include "fed/representations/ast.hpp"
 #include "fed/representations/ast/forward.hpp"
 #include "fed/representations/ast/handle.hpp"

@@ -5,7 +5,7 @@
 #include "fed/representations/ast/handle.hpp"
 #include "fed/representations/ast/name-scope.hpp"
 #include "fed/representations/ast/sym-table.hpp"
-#include "fed/parser/semantic-error.hpp"
+#include "fed/seman/semantic-error.hpp"
 #include <expected>
 #include <memory>
 

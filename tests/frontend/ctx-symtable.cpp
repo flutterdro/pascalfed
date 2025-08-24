@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "fed/diagnostics/buffer.hpp"
-#include "fed/parser/context.hpp"
+#include "fed/seman/context.hpp"
 #include "fed/representations/ast.hpp"
 
 #include "commons.hpp"

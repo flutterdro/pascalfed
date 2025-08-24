@@ -1,5 +1,4 @@
 #include "fed/diagnostics/buffer.hpp"
-#include "fed/parser/context.hpp"
 #include "fed/representations/ast/compare.hpp"
 #include "fed/parser/parser.hpp"
 #include "fed/representations/ast/nodes.hpp"

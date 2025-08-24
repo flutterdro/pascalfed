@@ -2,7 +2,6 @@
 #define FED_PARSE_ERROR_HPP_
 
 #include "fed/diagnostics/compile-error.hpp"
-#include "fed/parser/context.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/scanner/token.hpp"
 #include "fed/utils/superutil.hpp"

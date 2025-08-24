@@ -4,7 +4,7 @@
 #include "fed/diagnostics/buffer.hpp"
 #include "fed/diagnostics/compile-error.hpp"
 #include "fed/parser/anchor-stack.hpp"
-#include "fed/parser/context.hpp"
+#include "fed/seman/context.hpp"
 #include "fed/representations/ast/nodes.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/scanner/lex.hpp"

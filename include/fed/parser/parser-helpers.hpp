@@ -1,7 +1,6 @@
 #ifndef FED_PARSER_MACROS_AKMSCOWMK
 #define FED_PARSER_MACROS_AKMSCOWMK
 
-#include "fed/parser/context.hpp"
 #include "fed/parser/parse_error.hpp"
 #include "fed/parser/parser.hpp"
 #include "fed/representations/ast/forward.hpp"

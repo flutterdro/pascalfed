@@ -1,7 +1,7 @@
 #ifndef FED_PARSE_TREE_HPP_
 #define FED_PARSE_TREE_HPP_
 
-#include "fed/parser/context.hpp"
+#include "fed/seman/context.hpp"
 #include "fed/representations/raw-source.hpp"
 #include "fed/representations/ast/handle.hpp"
 #include "fed/representations/ast/forward.hpp"

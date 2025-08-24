@@ -1,6 +1,5 @@
 #include "fed/diagnostics/compile-error.hpp"
 #include "fed/diagnostics/internal-error.hpp"
-#include "fed/parser/context.hpp"
 #include "fed/parser/parse_error.hpp"
 #include "fed/parser/parser-helpers.hpp"
 #include "fed/parser/parser.hpp"
