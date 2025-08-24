@@ -47,24 +47,67 @@ auto parser::parse_block(semantic_context ctx)
 
     }
     anchors().pop(token_type::keyword_var);
+
+    while (true) {
+        if (current_token_is(equal_to(token_type::keyword_function))){
+
+        } else if (
+            current_token_is(equal_to(token_type::keyword_procedure))
+        ) {
+
+        } else {
+            break;
+        }
+    }
     
     
 }
+
+auto parser::parse_function(semantic_context& ctx)
+    -> parse_result<ast::function> {
+    auto func_ctx = ctx.make_local();
+
+    auto action = [](
+        auto idnt,
+        auto arguments,
+        auto return_type
+    ) {
+        return ast::function_type{
+            .return_type = monad_to_handle(std::move(return_type)),
+            .arguments = std::move(*arguments),
+        };
+    };
+    auto action2 = [](auto&& type) {
+        return FWD(type);
+    };
+    using enum token_type;
+    auto argument_list_parse = make_many_parse(&parser::parse_argument, semicolon);
+    auto return_type_parse = [&](auto&& parser, auto&& ctx_) {
+        return chain_parse(ctx_, action2, colon, parse_type_f);
+    };
+    chain_parse(
+        ctx, action,
+        keyword_function, parse_identifier_f,
+        l_paren, argument_list_parse, r_paren,
+        return_type_parse
+    );
+
+    parse_block(std::move(func_ctx));
+}
+
 //
 /// TYPE DECLARATION PARSING
+//
 
 auto parser::parse_type_definitions(semantic_context& ctx)
     -> parse_result<void> {
     auto definition_action = [&](auto name, auto type) {
         if (not name.has_value()) 
             return identity_monad<std::monostate>();
-        auto succ = ctx.add_type(ast::type_declaration{
+        ctx.add_type(ast::type_declaration{
             .name = std::move(*name),
             .type = monad_to_handle(std::move(type)),
-        });
-        if (not succ.has_value()) {
-            push_error(succ.error());
-        }
+        }).sploink(diagnostics());
         return identity_monad<std::monostate>();
     };
     auto definition_parse = make_chain_parse(
@@ -226,12 +269,12 @@ auto parser::parse_argument(semantic_context const& ctx)
 
 auto parser::parse_function_type(semantic_context const& ctx)
     -> parse_result<ast::function_type> {
-    auto action = [this](
+    auto action = [](
         auto arguments,
         auto return_type
     ) {
         return ast::function_type{
-            .return_type = contaminate(*this, std::move(return_type)),
+            .return_type = monad_to_handle(std::move(return_type)),
             .arguments = std::move(*arguments),
         };
     };

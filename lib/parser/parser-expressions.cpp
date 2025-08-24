@@ -4,6 +4,7 @@
 #include "fed/parser/parse_error.hpp"
 #include "fed/parser/parser.hpp"
 #include "fed/representations/ast.hpp"
+#include "fed/representations/ast/handle.hpp"
 #include "fed/representations/ast/nodes.hpp"
 #include "fed/scanner/token.hpp"
 #include "fed/utils/superutil.hpp"
@@ -258,15 +259,10 @@ auto parser::parse_dereferencing(
     ast::expression base)
     -> parse_result<ast::expression> {
     auto base_handle     = handle<ast::expression>(std::move(base));
-    auto expression_type = [&] () -> ast::observer_handle<ast::type> {
-        auto pointer_type = ctx.get_expression_type(base_handle);
-        if (auto type_exp = ctx.dereference_type(pointer_type)) {
-            return *type_exp;
-        } else {
-            diagnostics().push_back(type_exp.error());
-            return poison_pill;
-        }
-    }();
+    auto expression_type = 
+        ctx.dereference_type(
+            ctx.get_expression_type(base_handle)
+        ).sploink(diagnostics());
     return parser::parse_expression_leaf(
         ctx,
         ast::dereferenced_expression{
@@ -324,12 +320,8 @@ auto parser::parse_call(semantic_context const& ctx, ast::expression base)
         .call_type(
             ctx.get_expression_type(base_handle),
             caller_args_types
-        )
-        .transform_error([&](auto&& err) {
-            this->diagnostics().push_back(err);
-            return err;
-        })
-        .value_or(poison_pill);
+        ).sploink(diagnostics());
+        
     
     return ast::called_expression{
         .type      = return_type,
@@ -380,12 +372,7 @@ auto parser::parse_indexing(semantic_context const& ctx, ast::expression base)
         .index_type(
             ctx.get_expression_type(base_handle),
             index_args_types
-        )
-        .transform_error([&](auto&& err) {
-            this->diagnostics().push_back(err);
-            return err;
-        })
-        .value_or(poison_pill);
+        ).sploink(diagnostics());
     
     return ast::indexed_expression{
         .type     = return_type,
@@ -405,11 +392,7 @@ auto parser::parse_member_access(semantic_context const& ctx, ast::expression ba
         if (auto identifier_exp = parse_identifier(ctx)) {
             auto member_type = ctx
                 .member_type(base_type, *identifier_exp)
-                .transform_error([&](auto&& err) {
-                    diagnostics().push_back(err);
-                    return std::monostate();
-                })
-                .value_or(poison_pill);
+                .sploink(diagnostics());
             return {std::move(*identifier_exp), member_type};
         } else {
             return {"##invalid"s, poison_pill};

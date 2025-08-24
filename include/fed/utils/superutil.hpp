@@ -42,6 +42,26 @@ private:
 
 namespace fed {
 
+namespace detail {
+template<typename>
+struct member_pointer_trait_impl {
+    using member_type = void;
+    using base_type   = void;
+    static constexpr bool is_member = false;
+};
+template<typename T, typename U>
+struct member_pointer_trait_impl<U T::*> {
+    using member_type = U;
+    using base_type   = T;
+    static constexpr bool is_member = true;
+};
+}
+template<typename T>
+concept member_pointer = detail::member_pointer_trait_impl<T>::is_member;
+template<typename T>
+using member_type = typename detail::member_pointer_trait_impl<T>::member_type;
+template<typename T>
+using member_base = typename detail::member_pointer_trait_impl<T>::base_type;
 inline constexpr auto transform = [](auto&& f) {
     return [f_ = FWD(f)](auto&& val) { return val.transform(f_); };
 };
@@ -131,6 +151,10 @@ struct antidote {
     constexpr operator T const&& () const&& { return std::move(data); }
 
     T data;
+};
+struct drainage {
+    constexpr drainage() noexcept = default;
+    constexpr drainage(poison_t) noexcept {}
 };
 
 struct non_copyable { 

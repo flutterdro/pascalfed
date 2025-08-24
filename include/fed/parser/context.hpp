@@ -15,8 +15,6 @@ enum class check_result {
     success = 0,
     failure = 1,
 };
-template<typename T>
-using semantic_result = std::expected<T, contextual_error>;
 class semantic_context {
 public:
     using type_observer = ast::observer_handle<ast::type>;
@@ -135,7 +133,7 @@ public:
         -> ast::expression;
 
     auto match_types(type_observer, type_observer) const
-        -> semantic_result<void>;
+        -> semantic_result<bool>;
     auto is_ordinal(ast::type*)
         -> bool;
     auto get_expression_type(ast::expression const&) const

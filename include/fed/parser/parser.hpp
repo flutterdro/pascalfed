@@ -131,6 +131,10 @@ public:
         -> parse_result<ast::program>; 
     auto parse_program_heading()
         -> parse_result<ast::handle<ast::program_heading>>;
+    auto parse_function(semantic_context&)
+        -> parse_result<ast::function>;
+    auto parse_procedure(semantic_context&)
+        -> parse_result<ast::procedure>;
     auto parse_block(semantic_context)
         -> parse_result<ast::block>;
 
@@ -173,15 +177,6 @@ public:
 
     auto parse_identifier(semantic_context const&)
         -> parse_result<ast::identifier>;
-    auto parse_function_declaration()
-        -> parse_result<ast::handle<ast::function_declaration>>;
-    auto parse_function_heading()
-        -> parse_result<ast::handle<ast::function_heading>>;
-    auto parse_procedure_declaration()
-        -> parse_result<ast::handle<ast::procedure_declaration>>;
-    auto parse_procedure_heading()
-        -> parse_result<ast::handle<ast::procedure_heading>>;
-
 
     auto parse_expression(semantic_context const&, precedence::level = precedence::lowest)
         -> parse_result<ast::expression>;

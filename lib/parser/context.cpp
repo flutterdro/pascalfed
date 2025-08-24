@@ -1,4 +1,5 @@
 #include "fed/parser/context.hpp"
+#include "fed/diagnostics/compile-error.hpp"
 #include "fed/parser/semantic-error.hpp"
 #include "fed/representations/ast.hpp"
 #include "fed/representations/ast/forward.hpp"
@@ -8,10 +9,7 @@
 #include "fed/representations/ast/sym-table.hpp"
 #include "fed/utils/predicates.hpp"
 #include "fed/utils/superutil.hpp"
-#include <__expected/unexpected.h>
-#include <algorithm>
 #include <ranges>
-#include <array>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -206,6 +204,8 @@ auto semantic_context::add_constant(ast::constant_declaration const_decl)
 }
 auto semantic_context::add_variable(ast::variable_declaration var_decl)
     -> semantic_result<ast::variable_id> {
+    auto res = semantic_result<ast::variable_id>();
+    res.set_result(ast::variable_id::poison);
     auto const [is_success, it] = names().insert(
         var_decl.name, 
         {
@@ -216,10 +216,10 @@ auto semantic_context::add_variable(ast::variable_declaration var_decl)
     if (is_success) {
         auto const id = table().add(std::move(var_decl));
         it->second.id = std::to_underlying(id);
-        return id;
+        res.set_result(id);
     }
     
-    return {};   
+    return res;   
 }
 
 auto semantic_context::synthesize_dummy_expression() const
@@ -274,18 +274,18 @@ struct type_matcher {
     auto match(
         ast::observer_handle<ast::type> type1,
         ast::observer_handle<ast::type> type2
-    ) const -> semantic_result<void> {
+    ) const -> semantic_result<bool> {
         // if (type1.is_poisoned() or type2.is_poisoned()) return {};
         return then_all(cure(*this), type1, type2);
         // return (*this)(type1.unsafe_value(), type2.unsafe_value());
     }
 
     auto operator()(ast::type const& type1, ast::type const& type2) const
-        -> semantic_result<void> { return std::visit(*this, type1, type2); }
+        -> semantic_result<bool> { return std::visit(*this, type1, type2); }
     auto operator()(auto const& type1, ast::type const& type2) const 
-        -> semantic_result<void> { return (*this)(type2, type1); }
+        -> semantic_result<bool> { return (*this)(type2, type1); }
     auto operator()(ast::type const& type1, auto const& type2) const
-        -> semantic_result<void> { 
+        -> semantic_result<bool> { 
         return std::visit(
             [&type2, this](auto const& type1_) { return (*this)(type1_, type2); },
             type1
@@ -293,85 +293,119 @@ struct type_matcher {
     }
 
     auto operator()(ast::type_identifier const& type1, ast::type_identifier const& type2) const 
-        -> semantic_result<void> {
+        -> semantic_result<bool> {
+        auto res = semantic_result<bool>();
         if (type1.id == type2.id) return {};
-        else return std::unexpected(contextual_error());
+        else res.add_error(contextual_error());
+        return res;
     }
     auto operator()(ast::type_identifier const& type1, auto const& type2) const 
-        -> semantic_result<void> {
+        -> semantic_result<bool> {
         auto underlying_type_obs = ctx.type_from_id(type1.id);
         if (underlying_type_obs.is_poisoned()) return {};
         else return (*this)(underlying_type_obs.unsafe_value(), type2);
     }
     auto operator()(auto const& type1, ast::type_identifier const& type2) const
-        -> semantic_result<void> {
+        -> semantic_result<bool> {
         return (*this)(type2, type1);
     }
     auto operator()(ast::array_type const& type1, ast::array_type const& type2) const
-        -> semantic_result<void> {
-        if (not match(type1.component_type, type2.component_type).has_value()) {
-            return std::unexpected(contextual_error());
+        -> semantic_result<bool> {
+        auto res = semantic_result<bool>();
+        res.set_result(true);
+        if (not res.sieve(match(type1.component_type, type2.component_type))) {
+            res.set_result(false);
         }
         if (type1.index_types.size() != type2.index_types.size()) {
-            return std::unexpected(contextual_error());
+            res.add_error(dummy_error(
+                {}, "argument count missmatch"
+            ));
+            res.set_result(false);
+            return res;
         }
         for (std::size_t i = 0; i < type1.index_types.size(); ++i) {
-            if (not match(type1.index_types[i], type2.index_types[i]).has_value()) {
-                return std::unexpected(contextual_error());
+            if (not res.sieve(match(type1.index_types[i], type2.index_types[i]))) {
+                res.set_result(false);
             }
         }
-        return {};
+        return res;
     }
     auto operator()(ast::set_type const& type1, ast::set_type const& type2) const
-        -> semantic_result<void> {
+        -> semantic_result<bool> {
         auto underlying_type_obs1 = ast::observer_handle(type1.base);
         auto underlying_type_obs2 = ast::observer_handle(type2.base);
         return match(underlying_type_obs1, underlying_type_obs2);
     }
     auto operator()(ast::function_type const& type1, ast::function_type const& type2) const
-        -> semantic_result<void> {
-        if (not match(type1.return_type, type2.return_type).has_value()) {
-            return std::unexpected(contextual_error());
+        -> semantic_result<bool> {
+        auto res = semantic_result<bool>();
+        res.set_result(true);
+        if (not res.sieve(match(type1.return_type, type2.return_type))) {
+            res.set_result(false);
         }
         if (type1.arguments.size() != type2.arguments.size()) {
-            return std::unexpected(contextual_error());
+            res.set_result(false);
+            res.add_error(dummy_error(
+                {}, "not enough arguments"
+            ));
+            return res;
         }
         auto arg_types1 = type1.arguments 
             | std::views::transform(extract_type_from_handle<ast::argument>);
         auto arg_types2 = type2.arguments
             | std::views::transform(extract_type_from_handle<ast::argument>);
         for (std::size_t i = 0; i < type1.arguments.size(); ++i) {
-            if (not match(arg_types1[i], arg_types2[i]).has_value()) {
-                return std::unexpected(contextual_error());
+            if (not res.sieve(match(arg_types1[i], arg_types2[i]))) {
+                res.set_result(false);
             }
         }
-        return {};
+        return res;
     }
     auto operator()(ast::procedure_type const& type1, ast::procedure_type const& type2) const
-        -> semantic_result<void> {
+        -> semantic_result<bool> {
+        auto res = semantic_result<bool>();
+        res.set_result(true);
         if (type1.argument_types.size() != type2.argument_types.size()) {
-            return std::unexpected(contextual_error());
+            res.set_result(false);
+            res.add_error(dummy_error(
+                {}, "argument count missmatch"
+            ));
+            return res;
         }
         for (std::size_t i = 0; i < type1.argument_types.size(); ++i) {
-            if (not match(type1.argument_types[i], type2.argument_types[i]).has_value()) {
-                return std::unexpected(contextual_error());
+            if (not res.sieve(match(type1.argument_types[i], type2.argument_types[i]))) {
+                res.set_result(false);
             }
         }
-        return {};
+        return res;
     }
     auto operator()(ast::subrange_type const& type1, ast::subrange_type const& type2) const
-        -> semantic_result<void> {
+        -> semantic_result<bool> {
         
     }
     auto operator()(ast::type_builtin const& type1, ast::type_builtin const& type2) const
-        -> semantic_result<void> {
-        if (type1 == type2) return {};
-        return std::unexpected(contextual_error());
+        -> semantic_result<bool> {
+        auto res = semantic_result<bool>();
+        res.set_result(true);
+        if (type1 != type2) {
+            res.set_result(false);
+            res.add_error(dummy_error(
+                {}, "type missmatch"
+            ));
+        }
+        return res;
     }
 
     //catch all
     auto operator()(auto const& type1, auto const& type2) const
-        -> semantic_result<void> { return std::unexpected(contextual_error()); }
+        -> semantic_result<bool> {
+        auto res = semantic_result<bool>();
+        res.set_result(false);
+        res.add_error(dummy_error(
+            {}, "type missmatch"
+        ));
+        return res;
+    }
 
 
     semantic_context const& ctx;
@@ -380,7 +414,7 @@ struct type_matcher {
 
 
 auto semantic_context::match_types(type_observer type1,  type_observer type2) const 
-    -> semantic_result<void> {
+    -> semantic_result<bool> {
     return type_matcher{*this}.match(type1, type2);
 }
 
@@ -502,193 +536,151 @@ auto semantic_context::get_constant_type(ast::observer_handle<ast::constant> cns
 }
 auto semantic_context::get_function_from_type(type_observer function) const
     -> semantic_result<ast::observer_handle<ast::function_type>> {
-    return function
-        .and_then(LIFT_MEMBER(get_function_from_type));
-}
-auto semantic_context::get_function_from_type(ast::type const& function) const
-    -> semantic_result<ast::observer_handle<ast::function_type>> {
-    auto maybe_function_type = std::get_if<ast::function_type>(std::addressof(function));
-    if (maybe_function_type == nullptr) {
-        return std::unexpected(contextual_error());
-    } else {
-        return ast::observer_handle(maybe_function_type);
+    auto res = semantic_result<ast::observer_handle<ast::function_type>>();
+    res.set_result(ast::get_if<ast::function_type>(function));
+    if (not ast::is<ast::function_type>(function)) {
+        res.add_error(dummy_error({}, "expected a function type"));
     }
+    return res;
 }
 
 auto semantic_context::call_type(
     type_observer type, 
     std::span<type_observer> caller_args
 ) const -> semantic_result<type_observer> {
-    return get_function_from_type(type)
-        .and_then(std::bind_back(LIFT_MEMBER(call_type), caller_args));
+    using namespace ast;
+    namespace stdv = std::views;
+    auto res = semantic_result<type_observer>();
+    auto func_handle = res.sieve(get_function_from_type(type));
+    res.set_result(try_member<&function_type::return_type>(func_handle));
+    auto argument_handles = try_member<&function_type::arguments>(func_handle);
+    argument_handles.and_then(
+        [&](handle_group<argument> const& callee_args) 
+            -> drainage {
+            auto callee_args_ = callee_args
+                |stdv::transform(try_member<&argument::type>);
+            if (callee_args.size() != caller_args.size()) {
+                res.add_error(dummy_error({}, "hewwo uwu 2"));
+                res.set_result(poison_pill);
+                return {};
+            }
+            for (std::size_t i = 0; i < callee_args.size(); ++i) {
+                if (res.sieve(match_types(callee_args_[i], caller_args[i]))) {
+                    res.set_result(poison_pill);
+                }
+            }
+            return {};
+    });
+    return res;
 }
-auto semantic_context::call_type(
-    ast::observer_handle<ast::function_type> func,
-    std::span<type_observer> caller_args
-) const -> semantic_result<type_observer> {
-    return func
-        .and_then(std::bind_back(LIFT_MEMBER(call_type), caller_args));
-}
-auto semantic_context::call_type(
-    ast::function_type const& func, 
-    std::span<type_observer> caller_args
-) const -> semantic_result<type_observer> {
-    auto callee_args = func.arguments
-        | std::views::transform(extract_type_from_handle<ast::argument>);
-    if (callee_args.size() != caller_args.size()) {
-        // TODO: errors
-        return std::unexpected(contextual_error());
-    }
-    for (std::size_t i = 0; i < callee_args.size(); ++i) {
-        if (auto check_result = match_types(callee_args[i], caller_args[i])) {
-            continue;
-        } else {
-            return std::unexpected(check_result.error());
-        }
-    }
-    return func.return_type;
-}
+
 auto semantic_context::get_array_from_type(type_observer array) const
     -> semantic_result<ast::observer_handle<ast::array_type>> {
-    return array
-        .and_then(LIFT_MEMBER(get_array_from_type));
-}
-auto semantic_context::get_array_from_type(ast::type const& array) const
-    -> semantic_result<ast::observer_handle<ast::array_type>> {
-    auto maybe_array_type = std::get_if<ast::array_type>(std::addressof(array));
-    if (maybe_array_type == nullptr) {
-        return std::unexpected(contextual_error());
-    } else {
-        return ast::observer_handle(maybe_array_type);
+    auto res = semantic_result<ast::observer_handle<ast::array_type>>();
+    res.set_result(ast::get_if<ast::array_type>(array));
+    if (not ast::is<ast::array_type>(array)) {
+        res.add_error(dummy_error({}, "expected an array"));
     }
+    return res;
 }
 
 auto semantic_context::index_type(
     type_observer type, 
     std::span<type_observer> indexer_args
 ) const -> semantic_result<type_observer> {
-    return get_array_from_type(type)
-        .and_then(std::bind_back(LIFT_MEMBER(index_type), indexer_args));
-}
-auto semantic_context::index_type(
-    ast::observer_handle<ast::array_type> arr,
-    std::span<type_observer> indexer_args
-) const -> semantic_result<type_observer> {
-    return arr
-        .and_then(std::bind_back(LIFT_MEMBER(index_type), indexer_args));
-}
-auto semantic_context::index_type(
-    ast::array_type const& arr, 
-    std::span<type_observer> indexer_args
-) const -> semantic_result<type_observer> {
-    auto const& indexee_args = arr.index_types;
-    if (indexee_args.size() != indexer_args.size()) {
-        // TODO: errors
-        return std::unexpected(contextual_error());
-    }
-    for (std::size_t i = 0; i < indexee_args.size(); ++i) {
-        if (auto check_result = match_types(indexee_args[i], indexer_args[i])) {
-            continue;
-        } else {
-            return std::unexpected(check_result.error());
-        }
-    }
-    return arr.component_type;
+    using namespace ast;
+    auto res = semantic_result<type_observer>();
+    auto array_handle = res.sieve(get_array_from_type(type));
+    res.set_result(try_member<&array_type::component_type>(array_handle));
+    auto indexee_args = try_member<&array_type::index_types>(array_handle);
+    indexee_args.and_then(
+        [&](ast::handle_group<ast::type> const& indexees)
+            -> drainage {
+            if (indexees.size() != indexer_args.size()) {
+                res.add_error(dummy_error({}, "hewwo uwu"));
+                res.set_result(poison_pill);
+                return {};
+            }
+            for (std::size_t i = 0; i < indexees.size(); ++i) {
+                if (res.sieve(match_types(indexees[i], indexer_args[i]))) {
+                    res.set_result(poison_pill);
+                }
+            }
+            return {};
+    });
+    
+    return res;
 }
 
 auto semantic_context::get_record_from_type(type_observer type) const
     -> semantic_result<ast::observer_handle<ast::record_type>> {
-    return type.and_then(LIFT_MEMBER(get_record_from_type));
-}
-auto semantic_context::get_record_from_type(ast::type const& record) const
-    -> semantic_result<ast::observer_handle<ast::record_type>> {
-    auto maybe_record_type = std::get_if<ast::record_type>(&record);
-    if (maybe_record_type == nullptr) {
-        return std::unexpected(contextual_error());
-    } else {
-        return maybe_record_type;
+    auto res = semantic_result<ast::observer_handle<ast::record_type>>();
+    res.set_result(ast::get_if<ast::record_type>(type));
+    if (not ast::is<ast::record_type>(type)) {
+        res.add_error(dummy_error({}, "expected a record type"));
     }
+    return res;
 }
 
 auto semantic_context::member_type(
     type_observer type,
     ast::identifier_view name
 ) const -> semantic_result<type_observer> {
-    return get_record_from_type(type).and_then(
-        [=, this](auto const& record) {
-            return this->member_type(record, name);
-        }
-    );
+    using namespace ast;
+    auto res = semantic_result<type_observer>();
+    res.set_result(poison_pill);
+    auto fields = res.sieve(get_record_from_type(type))
+        .transform(member(&record_type::fixed_fields))
+        .and_then([&](handle_group<fixed_field> const& fields)->drainage{
+            for (auto&& field : fields) {
+                bool is_the_one = field
+                    .transform(member(&fixed_field::name))
+                    .and_then(cure(equal_to(name)));
+                if (is_the_one) {
+                    res.set_result(try_member<&fixed_field::type>(field));
+                    return {};
+                }
+            }
+            res.add_error(dummy_error({}, "no such member"));
+            return {};
+        });
+    return res;
 }
-auto semantic_context::member_type(
-    ast::observer_handle<ast::record_type> record_obs,
-    ast::identifier_view name
-) const -> semantic_result<type_observer> {
-    return record_obs.and_then([=, this](auto const& record) {
-        return this->member_type(record, name);
-    });
-}
-auto semantic_context::member_type(
-    ast::record_type const& record, 
-    ast::identifier_view name
-) const -> semantic_result<type_observer> {
-    auto const member_it = std::ranges::find_if(
-        record.fixed_fields,
-        [name](ast::observer_handle<ast::fixed_field> field) -> bool {
-            return field.and_then(
-                cure(chain |&ast::fixed_field::name |equal_to(name))
-            );
-        }
-    );
-    if (member_it == record.fixed_fields.end()) {
-        return std::unexpected(contextual_error());
-    } 
-    return extract_type_from_handle<ast::fixed_field>(*member_it);
-}
+
 auto semantic_context::get_pointer_from_type(type_observer type) const
     -> semantic_result<ast::observer_handle<ast::pointer_type>> {
-    return type.and_then(LIFT_MEMBER(get_pointer_from_type));
-}
-auto semantic_context::get_pointer_from_type(ast::type const& pointer) const
-    -> semantic_result<ast::observer_handle<ast::pointer_type>> {
-    auto maybe_pointer_type = std::get_if<ast::pointer_type>(&pointer);
-    if (maybe_pointer_type == nullptr) {
-        return std::unexpected(contextual_error());
-    } else {
-        return maybe_pointer_type;
+    auto res = semantic_result<ast::observer_handle<ast::pointer_type>>();
+    res.set_result(ast::get_if<ast::pointer_type>(type));
+    if (not ast::is<ast::pointer_type>(type)) {
+        res.add_error(dummy_error({}, "expected a pointer type"));
     }
+    return res;
 }
+
 auto semantic_context::dereference_type(type_observer type) const 
     -> semantic_result<type_observer> {
-    return get_pointer_from_type(type).and_then(LIFT_MEMBER(dereference_type));
+    auto res = semantic_result<type_observer>();
+    auto ptr_handle = res.sieve(get_pointer_from_type(type));
+    res.set_result(ast::try_member<&ast::pointer_type::base>(ptr_handle));
+    return res;
 }
-auto semantic_context::dereference_type(ast::observer_handle<ast::pointer_type> ptr) const
-    -> semantic_result<type_observer> {
-    return ptr.and_then(LIFT_MEMBER(dereference_type));
-}
-auto semantic_context::dereference_type(ast::pointer_type const& ptr) const
-    -> semantic_result<type_observer> {
-    return ptr.base;
-}
+
 auto semantic_context::add_types(type_observer lhs, type_observer rhs) const
     -> semantic_result<type_observer> {
-    return ast::then_all(
-        LIFT_MEMBER(add_types), 
-        lhs, rhs
-    );
+    return {};
 }
 
 struct type_adder {
-    auto operator()(auto const&, auto const&)
-        -> semantic_result<ast::observer_handle<ast::type>> {
-        return std::unexpected(contextual_error());
-    }
+    // auto operator()(auto const&, auto const&)
+    //     -> semantic_result<ast::observer_handle<ast::type>> {
+    //     return std::unexpected(contextual_error());
+    // }
     semantic_context const& ctx;
 };
 
 auto semantic_context::add_types(ast::type const& lhs, ast::type const& rhs) const
     -> semantic_result<type_observer> {
-    return std::visit(type_adder{*this}, lhs, rhs);
+    // return std::visit(type_adder{*this}, lhs, rhs);
 }
 
 } // namespace fed

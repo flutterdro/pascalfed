@@ -6,6 +6,7 @@
 
 #include <fmt/core.h>
 #include <ranges>
+#include <variant>
 
 #include "fed/utils/superutil.hpp"
 #include "fed/diagnostics/internal-error.hpp"
@@ -17,6 +18,7 @@ class handle {
     template<typename>
     friend struct observer_handle;
 public:
+    using value_type = T;
     handle() 
         : m_handle(nullptr) {}
     template<typename... Us>
@@ -125,6 +127,7 @@ template<typename T>
 class observer_handle {
     friend handle<T>;
 public:
+    using value_type = T;
     observer_handle() = default;
     constexpr observer_handle(poison_t) noexcept 
         : m_handle(nullptr) {}
@@ -187,6 +190,22 @@ public:
 private:
     T const* m_handle;
 };
+template<auto M>
+inline constexpr auto try_member = 
+    [](observer_handle<member_base<decltype(M)>> hndl) {
+        static_assert(member_pointer<decltype(M)>, "expects member pointer");
+        using ret_t = decltype(observer_handle(hndl.unsafe_value().*M));
+        if (not hndl.is_poisoned()) {
+            return observer_handle(hndl.unsafe_value().*M);
+        }
+        return ret_t(poison_pill);
+    };
+template<typename T>
+inline constexpr auto is = 
+    []<typename... Ts>(observer_handle<std::variant<Ts...>> handle) {
+        if (handle.is_poisoned()) return true;
+        return std::holds_alternative<T>(handle.unsafe_value());
+    };
 template<typename T>
 inline constexpr auto get_if = 
     []<typename... Ts>(observer_handle<std::variant<Ts...>> v) 

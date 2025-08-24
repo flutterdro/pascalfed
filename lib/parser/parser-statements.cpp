@@ -201,7 +201,7 @@ auto parser::parse_for_statement(semantic_context& ctx)
     auto id = for_ctx.add_variable(ast::variable_declaration{
         .name = head.var.value_or("##bogus name"),
         .type = ast::materialize(ctx.get_expression_type(head.init)),
-    }).value_or(ast::variable_id::poison);
+    }).sploink(diagnostics());
 
     auto final_act = [&](auto stmt) {
         return ast::for_statement{

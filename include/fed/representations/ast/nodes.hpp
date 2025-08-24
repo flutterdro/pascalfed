@@ -22,6 +22,7 @@ struct block {
     semantic_context context;
     group<function>  functions;
     group<procedure> procedures;
+    handle<compound_statement> statements;
 };
 
 struct function {
